@@ -16,6 +16,22 @@ const referenciasRoutes = require('./routes/referenciasRoutes');
 
 const app = express();
 
+const allowedOrigins = [
+  'https://interface-sistema-maranguape.vercel.app',
+  'http://localhost:5173/'
+];
+
+const corsOptions = {
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true, // Caso esteja usando cookies
+};
+
 // Middlewares globais
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -23,11 +39,7 @@ app.use((req, res, next) => {
   req.cookies = new Cookies(req, res); // Cria a instância de Cookies para cada requisição
   next(); // Passa para o próximo middleware ou rota
 });
-app.use(cors({
-  origin: "http://localhost:5173",
-  origin: "https://interface-sistema-maranguape.vercel.app/",  // URL do seu frontend
-  credentials: true, // Permite o envio de cookies
-}));
+app.use(cors(corsOptions));
 app.use(helmet());
 app.use(compression());
 
