@@ -266,6 +266,7 @@ router.delete('/delete-users', async (req, res) => {
 
   try {
     await Funcionario.deleteMany({ _id: { $in: usuariosObjectIds } }); // Deleta os usuários no MongoDB
+    await redisClient.del('setoresOrganizados');
     res.status(200).json({ message: 'Usuários deletados com sucesso' });
   } catch (error) {
     console.error(error);
