@@ -24,7 +24,8 @@ app.use((req, res, next) => {
   next(); // Passa para o próximo middleware ou rota
 });
 app.use(cors({
-  origin: "http://localhost:5173",  // URL do seu frontend
+  origin: "http://localhost:5173",
+  origin: "https://interface-sistema-maranguape.vercel.app/",  // URL do seu frontend
   credentials: true, // Permite o envio de cookies
 }));
 app.use(helmet());
