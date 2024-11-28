@@ -1,0 +1,29 @@
+# Ignorar arquivos de log
+*.log
+
+# Ignorar diretórios de dependências do Node.js
+node_modules/
+
+# Ignorar arquivos de configuração do editor
+.vscode/
+
+# Ignorar arquivos temporários
+*.tmp
+*.swp
+
+# Ignorar arquivos do sistema (exemplo para macOS)
+.DS_Store
+
+# Ignorar arquivos de ambiente
+.env
+
+# Ignorar diretórios de build
+build/
+dist/
+
+# Ignorar arquivos de backup
+*.bak
+
+# Ignorar arquivos de teste
+tests/
+test/
