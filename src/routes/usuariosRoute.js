@@ -53,7 +53,7 @@ router.post("/logout", (req, res) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production', // Pode ser removido ou ajustado se não estiver em produção
         maxAge: 0, // Define o tempo de expiração do cookie para 0, efetivamente apagando-o
-        sameSite: 'strict',
+        sameSite: 'None',
     });
 
     // Retorna uma resposta de sucesso
