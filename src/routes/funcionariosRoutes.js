@@ -5,12 +5,11 @@ const axios = require('axios');
 const Funcionario = require('../models/funcionariosSchema');
 const Setor = require('../models/setoresSchema');
 const s3Client = require('../config/aws');
-const { PutObjectCommand } = require('@aws-sdk/client-s3');
+const { PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const validateFuncionario = require('../validates/validateFuncionario');
 const upload = require('../config/multerConfig');
 const redisClient = require("../config/redisClient"); // Importa o cliente Redis exportado no app.js
-
 
 async function obterSetoresAncestrais(setorId) {
   const setoresAncestrais = [];
@@ -43,7 +42,6 @@ router.post('/', upload, async (req, res) => {
     if (req.body.foto === 'null') req.body.foto = null;
     if (req.body.arquivo === 'null') req.body.arquivo = null;
 
-    console.log(req.body.observacoes)
 
     const { error } = validateFuncionario.validate(req.body);
     if (error) {
@@ -64,6 +62,7 @@ router.post('/', upload, async (req, res) => {
     }
 
     // Processar foto enviada
+    let fotoUrlAWS = null;
     let fotoUrl = null;
     if (req.files && req.files.foto) {
       const foto = req.files.foto[0]; // A foto vem como um array (mesmo com um único arquivo)
@@ -77,17 +76,27 @@ router.post('/', upload, async (req, res) => {
       };
 
       const command = new PutObjectCommand(s3Params);
-      const s3UrlResponse = await getSignedUrl(s3Client, command, { expiresIn: 60 });
+      const s3UrlResponseFoto = await getSignedUrl(s3Client, command, { expiresIn: 60 });
 
       // Faz o upload do buffer usando a URL pré-assinada
-      await axios.put(s3UrlResponse, foto.buffer, {
+      await axios.put(s3UrlResponseFoto, foto.buffer, {
         headers: { 'Content-Type': foto.mimetype },
       });
 
-      fotoUrl = s3Params.Key;
+      fotoUrlAWS = s3Params.Key;
+
+      const getObjectCommand = new GetObjectCommand({
+        Bucket: 'system-maranguape', // Substitua pelo seu nome de bucket
+        Key: fotoUrlAWS, // O caminho do arquivo no S3
+      });
+
+      const url = await getSignedUrl(s3Client, getObjectCommand, { expiresIn: 3600 });
+
+      fotoUrl = url
     }
 
     // Processar arquivo PDF enviado
+    let arquivoUrlAWS = null;
     let arquivoUrl = null;
     if (req.files && req.files.arquivo) {
       const arquivo = req.files.arquivo[0]; // O arquivo vem como um array (mesmo com um único arquivo)
@@ -101,17 +110,26 @@ router.post('/', upload, async (req, res) => {
       };
 
       const command = new PutObjectCommand(s3Params);
-      const s3UrlResponse = await getSignedUrl(s3Client, command, { expiresIn: 60 });
+      const s3UrlResponseArquivo = await getSignedUrl(s3Client, command, { expiresIn: 60 });
 
-      await axios.put(s3UrlResponse, arquivo.buffer, { headers: { 'Content-Type': 'application/pdf' } });
+      await axios.put(s3UrlResponseArquivo, arquivo.buffer, { headers: { 'Content-Type': 'application/pdf' } });
 
-      arquivoUrl = s3Params.Key;
+      arquivoUrlAWS = s3Params.Key;
+
+      const getObjectCommand = new GetObjectCommand({
+        Bucket: 'system-maranguape', // Substitua pelo seu nome de bucket
+        Key: arquivoUrlAWS, // O caminho do arquivo no S3
+      });
+
+      const url = await getSignedUrl(s3Client, getObjectCommand, { expiresIn: 3600 });
+
+      arquivoUrl = url
     }
 
     // Criação do funcionário com dados do corpo da requisição
     const novoFuncionario = new Funcionario({
       nome,
-      foto: fotoUrl,
+      foto: fotoUrlAWS,
       secretaria,
       funcao,
       natureza,
@@ -123,7 +141,7 @@ router.post('/', upload, async (req, res) => {
       bairro,
       telefone,
       observacoes,
-      arquivo: arquivoUrl,
+      arquivo: arquivoUrlAWS,
       coordenadoria
     });
 
@@ -134,16 +152,14 @@ router.post('/', upload, async (req, res) => {
       $push: { funcionarios: funcionarioSalvo._id }
     });
 
-    // Obter e atualizar todos os setores pais com o ID do novo funcionário
-    const setoresAncestrais = await obterSetoresAncestrais(coordenadoria);
-    await Setor.updateMany(
-      { _id: { $in: setoresAncestrais } },
-      { $push: { funcionarios: funcionarioSalvo._id } }
-    );
 
     await redisClient.del('setoresOrganizados');
 
-    res.status(201).json(funcionarioSalvo);
+    res.status(201).json({
+      ...funcionarioSalvo.toObject(),
+      fotoUrl: funcionarioSalvo.foto ? fotoUrl : null,
+      arquivoUrl: funcionarioSalvo.arquivo ? arquivoUrl : null
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Erro ao criar funcionário' });
@@ -258,16 +274,34 @@ router.put('/edit-funcionario/:id', upload, async (req, res) => {
 });
 
 
+// Rota para deletar os usuários
 router.delete('/delete-users', async (req, res) => {
   const { userIds } = req.body; // Recebe os IDs dos usuários para deletar
 
-  console.log(userIds)
   const usuariosObjectIds = userIds.map(id => mongoose.Types.ObjectId.createFromHexString(id)); // Alterado para novo método
 
   try {
-    await Funcionario.deleteMany({ _id: { $in: usuariosObjectIds } }); // Deleta os usuários no MongoDB
+    // Encontrar os usuários que serão deletados
+    const usuarios = await Funcionario.find({ _id: { $in: usuariosObjectIds } });
+
+    // Para cada usuário encontrado, remova o ID do usuário do campo 'funcionarios' nos setores e coordenadorias
+    for (const usuario of usuarios) {
+      const coordenadoriaId = usuario.coordenadoria;
+
+      // Também removemos o usuário do setor atual (coordenadoria do usuário)
+      await Setor.updateMany(
+        { _id: coordenadoriaId },
+        { $pull: { funcionarios: usuario._id } }
+      );
+    }
+
+    // Deleta os usuários do banco de dados
+    await Funcionario.deleteMany({ _id: { $in: usuariosObjectIds } });
+
+    // Limpa o cache de setores organizados
     await redisClient.del('setoresOrganizados');
-    res.status(200).json({ message: 'Usuários deletados com sucesso' });
+
+    res.status(200).json({ message: 'Usuários deletados com sucesso e removidos de todos os setores.' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Erro ao deletar usuários' });
@@ -277,33 +311,58 @@ router.delete('/delete-users', async (req, res) => {
 router.put('/editar-coordenadoria-usuario', async (req, res) => {
   const { usuariosIds, coordenadoriaId } = req.body;
 
-  console.log("usuariosid: ", usuariosIds)
-  console.log("coordenadoriaId: ", coordenadoriaId)
-
   if (!usuariosIds || !coordenadoriaId) {
     return res.status(400).send('ID dos usuários e coordenadoria são obrigatórios.');
   }
 
   try {
+    // Converte os IDs para ObjectId se necessário
+    const usuariosObjectIds = usuariosIds.map(id => mongoose.Types.ObjectId.createFromHexString(id));
+    const coordenadoriaObjectId = mongoose.Types.ObjectId.createFromHexString(coordenadoriaId);
 
-    // // Converte os IDs para ObjectId se necessário
-    const usuariosObjectIds = usuariosIds.map(id => mongoose.Types.ObjectId.createFromHexString(id)); // Alterado para novo método
-    const coordenadoriaObjectId = mongoose.Types.ObjectId.createFromHexString(coordenadoriaId); // Alterado para novo método
-    // Atualiza todos os usuários com o novo ID de coordenadoria
-    const result = await Funcionario.updateMany(
-      { _id: { $in: usuariosObjectIds } },
-      { $set: { coordenadoria: coordenadoriaObjectId } }
+
+
+    // Remover os usuários dos setores antigos onde eles estavam
+    for (let usuarioId of usuariosObjectIds) {
+      const usuario = await Funcionario.findById(usuarioId);
+      if (!usuario) continue;
+
+      const coordenadoria = await Setor.findById(usuario.coordenadoria);
+
+
+      // removendo o funcionário diretamente da coordenadoria anterior
+      await Setor.updateMany(
+        { _id: usuario.coordenadoria },
+        { $pull: { funcionarios: usuario._id } }
+      );
+    }
+
+
+    // Adiciona os usuários aos setores da coordenadoria atual
+    const result = await Setor.updateMany(
+      { _id: coordenadoriaObjectId },
+      { $addToSet: { funcionarios: { $each: usuariosObjectIds } } } // Adiciona os usuários aos setores
     );
 
-    // Verifica se algum usuário foi atualizado
+
     if (result) {
+
+      // Atualiza os usuários com o novo ID de coordenadoria
+      await Funcionario.updateMany(
+        { _id: { $in: usuariosObjectIds } },
+        { $set: { coordenadoria: coordenadoriaObjectId } }
+      );
+
+      const usuariosModificados = await Funcionario.find({ _id: { $in: usuariosObjectIds } });
+
+      // Limpa o cache de setores organizados
       await redisClient.del('setoresOrganizados');
-      return res.status(200).send(`Usuários atualizados com sucesso!`);
+      return res.status(200).send(usuariosModificados);
     } else {
       return res.status(404).send('Nenhum usuário encontrado ou atualizado.');
     }
   } catch (error) {
-    console.error('Erro ao atualizar usuários:', error);
+    console.error('Erro ao atualizar usuários e setores:', error);
     res.status(500).send('Erro interno no servidor');
   }
 });
