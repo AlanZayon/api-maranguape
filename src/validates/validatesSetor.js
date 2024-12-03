@@ -14,13 +14,6 @@ const setorValidationSchema = Joi.object({
   funcionarios: Joi.array().items(Joi.string()),
   createdAt: Joi.date().default(() => new Date())
 });
-// .custom((value, helpers) => {
-//   // Verifica se `tipo` é "Setor" e `funcionarios` está vazio
-//   if (value.tipo === 'Setor' && (!value.funcionarios || value.funcionarios.length === 0)) {
-//     delete value.funcionarios; // Remove o campo `funcionarios`
-//   }
-//   return value;
-// });
 
 function validateSetor(data) {
   return setorValidationSchema.validate(data, { abortEarly: false });
