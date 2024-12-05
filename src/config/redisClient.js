@@ -1,7 +1,7 @@
 const Redis = require('ioredis');
 
 // Conectando ao Redis
-const redis = new Redis( "redis://default:BMbPPgtSoyimvQxxxOwfqBRBBPmeVcVV@autorack.proxy.rlwy.net:10989");
+const redis = new Redis(process.env.REDIS_URL);
 
 
 redis.on('connect', () => {
