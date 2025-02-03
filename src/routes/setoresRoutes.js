@@ -40,6 +40,9 @@ router.post('/', async (req, res) => {
     const setorSalvo = await novoSetor.save();
 
     await redisClient.del('setoresOrganizados');
+    await redisClient.del('setores:null');
+    await redisClient.del(`setor:${parent}:dados`); // Remove o cache do setor pai
+    await redisClient.del(`setor:${setorSalvo._id}:dados`); // Remove o cache do novo setor
 
 
     res.status(201).json(setorSalvo);
@@ -50,7 +53,7 @@ router.post('/', async (req, res) => {
 });
 
 // Rota para buscar todos os setores, subsetores e coordenadorias organizados
-router.get('/dados', async (req, res) => {
+router.get('/setoresOrganizados', async (req, res) => {
   try {
 
     const cacheKey = 'setoresOrganizados';
@@ -63,7 +66,6 @@ router.get('/dados', async (req, res) => {
 
     console.log('Cache miss');
     const setores = await Setor.find();
-    const funcionarios = await Funcionario.find();
   
     const organizarSetores = async (parentId = null) => {
       const setoresFiltrados = setores.filter(setor => String(setor.parent) === String(parentId));
@@ -73,45 +75,111 @@ router.get('/dados', async (req, res) => {
         const subsetores = subsetoresOrganizados.filter(subsetor => subsetor.tipo === 'Subsetor');
         const coordenadorias = subsetoresOrganizados.filter(coordenadoria => coordenadoria.tipo === 'Coordenadoria');
   
-        // Processar coordenadorias com funcionários e URLs
-        const coordenadoriasComFuncionarios = await Promise.all(coordenadorias.map(async (coordenadoria) => {
-          const funcionariosDaCoordenadoria = funcionarios.filter(
-            funcionario => String(funcionario.coordenadoria) === String(coordenadoria._id)
-          );
-  
-          const funcionariosComUrls = await Promise.all(funcionariosDaCoordenadoria.map(async (funcionario) => {
-            const fotoUrl = funcionario.foto ? await gerarUrlPreAssinada(funcionario.foto) : null;
-            const arquivoUrl = funcionario.arquivo ? await gerarUrlPreAssinada(funcionario.arquivo) : null;
-  
-            return {
-              ...funcionario.toObject(), // Certifique-se de que 'funcionario' é um documento Mongoose
-              fotoUrl: fotoUrl,
-              arquivoUrl: arquivoUrl
-            };
-          }));
-  
-          return {
-            ...coordenadoria, // Não use `.toObject()` aqui
-            funcionarios: funcionariosComUrls.length > 0 ? funcionariosComUrls : []
-          };
-        }));
-  
         return {
           ...setor.toObject(),
           subsetores: subsetores.length > 0 ? subsetores : [],
-          coordenadorias: coordenadoriasComFuncionarios.length > 0 ? coordenadoriasComFuncionarios : []
+          coordenadorias: coordenadorias.length > 0 ? coordenadorias : []
         };
       }));
     };
   
     const setoresOrganizados = await organizarSetores();
-    await redisClient.setex(cacheKey,3600, JSON.stringify(setoresOrganizados));
+    await redisClient.setex(cacheKey, 3600, JSON.stringify(setoresOrganizados));
     res.json({ setores: setoresOrganizados });
   
   } catch (err) {
     console.error(err);
     res.status(500).send('Erro ao buscar dados');
   }  
+});
+
+
+router.get('/setoresMain', async (req, res) => {
+  try {
+    const cacheKey = 'setores:null'; // A chave do cache será fixa, já que o parent é sempre null
+
+    // Tenta obter os dados do cache
+    const cacheData = await redisClient.get(cacheKey);
+
+    if (cacheData) {
+      console.log('Cache hit');
+      return res.json({ setores: JSON.parse(cacheData) });
+    }
+
+    console.log('Cache miss');
+    
+    // Busca os setores principais (onde o 'parent' é null)
+    const setores = await Setor.find({ parent: null });
+
+    // Armazena os dados no cache por 1 hora
+    await redisClient.setex(cacheKey, 3600, JSON.stringify(setores));
+
+    res.json({ setores });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Erro ao buscar setores');
+  }
+});
+
+router.get('/dados/:setorId', async (req, res) => {
+  try {
+    const { setorId } = req.params;
+    console.log(setorId)
+    const cacheKey = `setor:${setorId}:dados`;
+
+    // Tenta obter os dados do cache
+    const cacheData = await redisClient.get(cacheKey);
+
+    if (cacheData) {
+      console.log(cacheData,'Cache hit');
+      return res.json(JSON.parse(cacheData));
+    }
+
+    console.log('Cache miss');
+
+    // Buscar os subsetores e coordenadorias com base no parent (ID do setor)
+    const subsetores = await Setor.find({ parent: setorId, tipo: 'Subsetor' });
+    const coordenadorias = await Setor.find({ parent: setorId, tipo: 'Coordenadoria' });
+
+    console.log(subsetores)
+
+    // Buscar funcionários para as coordenadorias (caso necessário)
+    const funcionarios = await Funcionario.find();
+    const coordenadoriasComFuncionarios = await Promise.all(coordenadorias.map(async (coordenadoria) => {
+      const funcionariosDaCoordenadoria = funcionarios.filter(
+        funcionario => String(funcionario.coordenadoria) === String(coordenadoria._id)
+      );
+  
+      const funcionariosComUrls = await Promise.all(funcionariosDaCoordenadoria.map(async (funcionario) => {
+        const fotoUrl = funcionario.foto ? await gerarUrlPreAssinada(funcionario.foto) : null;
+        const arquivoUrl = funcionario.arquivo ? await gerarUrlPreAssinada(funcionario.arquivo) : null;
+  
+        return {
+          ...funcionario.toObject(), // Certifique-se de que 'funcionario' é um documento Mongoose
+          fotoUrl: fotoUrl,
+          arquivoUrl: arquivoUrl
+        };
+      }));
+  
+      return {
+        ...coordenadoria.toObject(),
+        funcionarios: funcionariosComUrls.length > 0 ? funcionariosComUrls : []
+      };
+    }));
+
+    const dados = {
+      subsetores,
+      coordenadoriasComFuncionarios,
+    };
+
+    // Armazena os dados no cache por 1 hora
+    await redisClient.setex(cacheKey, 3600, JSON.stringify(dados));
+
+    res.json(dados);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Erro ao buscar dados do setor');
+  }
 });
 
 
@@ -131,6 +199,9 @@ router.put('/rename/:id', async (req, res) => {
     setor.nome = nome; // Atualiza o nome
     await setor.save(); // Salva o setor atualizado
 
+    const cacheKey = `setor:${setor.parent}:dados`;
+    await redisClient.del(cacheKey);
+    await redisClient.del('setores:null');
     await redisClient.del('setoresOrganizados');
 
     return res.status(200).json(setor); // Retorna o setor atualizado
