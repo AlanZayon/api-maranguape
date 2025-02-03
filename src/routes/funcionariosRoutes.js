@@ -23,9 +23,74 @@ async function obterSetoresAncestrais(setorId) {
   return setoresAncestrais;
 }
 
-// Endpoint para criação de Funcionario
-router.post('/', upload, async (req, res) => {
+const gerarUrlPreAssinada = async (key) => {
   try {
+    const command = new GetObjectCommand({
+      Bucket: 'system-maranguape', // Substitua pelo seu nome de bucket
+      Key: key, // O caminho do arquivo no S3
+    });
+    // Gera a URL pré-assinada com 1 hora de validade (3600 segundos)
+    const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+    return url;
+  } catch (error) {
+    console.error('Erro ao gerar URL pré-assinada:', error);
+    return null;
+  }
+};
+
+
+router.get('/buscarFuncionarios', async (req, res) => {
+  try {
+    const cacheKey = `todos:funcionarios`;
+
+    // Tenta obter os dados do cache
+    const cacheData = await redisClient.get(cacheKey);
+    if (cacheData) {
+      console.log('Cache hit');
+
+      return res.json(JSON.parse(cacheData));
+    }
+
+    console.log('Cache miss');
+
+    // Buscar todos os funcionários
+    const funcionarios = await Funcionario.find();
+
+    // Adicionar URLs para as fotos e arquivos (caso existam)
+    const funcionariosComUrls = await Promise.all(funcionarios.map(async (funcionario) => {
+      const fotoUrl = funcionario.foto ? await gerarUrlPreAssinada(funcionario.foto) : null;
+      const arquivoUrl = funcionario.arquivo ? await gerarUrlPreAssinada(funcionario.arquivo) : null;
+
+      return {
+        ...funcionario.toObject(),
+        fotoUrl,
+        arquivoUrl
+      };
+    }));
+
+    console.log(funcionariosComUrls);
+
+    // Armazena os dados no cache por 1 hora
+    await redisClient.setex(cacheKey, 3600, JSON.stringify(funcionariosComUrls));
+    
+
+    res.json(funcionariosComUrls);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Erro ao buscar funcionários');
+  }
+});
+
+// Endpoint para criação de Funcionario
+router.post('/:setorId', upload, async (req, res) => {
+  try {
+
+    const { setorId } = req.params;
+    console.log("setores", setorId)
+
+    if (!setorId) {
+      return res.status(400).json({ error: 'setor inválida' });
+    }
 
     // Converta redesSociais de volta para um array, se estiver presente
     if (req.body.redesSociais) {
@@ -153,7 +218,9 @@ router.post('/', upload, async (req, res) => {
     });
 
 
-    await redisClient.del('setoresOrganizados');
+    const cacheKey = `setor:${setorId}:dados`;
+    await redisClient.del(cacheKey);
+    await redisClient.del("todos:funcionarios")
 
     res.status(201).json({
       ...funcionarioSalvo.toObject(),
@@ -167,14 +234,33 @@ router.post('/', upload, async (req, res) => {
 });
 
 // Endpoint para atualizar Funcionario
-router.put('/edit-funcionario/:id', upload, async (req, res) => {
+router.put('/edit-funcionario/:id/:setorId?', upload, async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id, setorId } = req.params;
+    console.log("setorid inicial", setorId);
 
     // Verificar se o funcionário existe
     const funcionarioExistente = await Funcionario.findById(id);
     if (!funcionarioExistente) {
       return res.status(404).json({ error: 'Funcionário não encontrado' });
+    }
+
+    let setorFinal = setorId;
+
+    // Se setorId for undefined, buscar o setor baseado na coordenadoria do funcionário
+    if (!setorFinal) {
+      if (!funcionarioExistente.coordenadoria) {
+        return res.status(404).json({ error: 'Coordenadoria não encontrada para este funcionário' });
+      }
+
+      // Buscar a coordenadoria do funcionário
+      const coordenadoria = await Setor.findById(funcionarioExistente.coordenadoria);
+      if (!coordenadoria || !coordenadoria.parent) {
+        return res.status(404).json({ error: 'Setor não encontrado para esta coordenadoria' });
+      }
+
+      setorFinal = coordenadoria.parent; // Definir setorId como o parent da coordenadoria
+      console.log("setorid definido", setorFinal);
     }
 
     // Converta redesSociais e observacoes para arrays, se presentes
@@ -184,6 +270,7 @@ router.put('/edit-funcionario/:id', upload, async (req, res) => {
     if (req.body.observacoes) {
       req.body.observacoes = JSON.parse(req.body.observacoes);
     }
+    console.log("foto",req.body.foto);
 
     if (req.body.foto === 'null') req.body.foto = null;
     if (req.body.arquivo === 'null') req.body.arquivo = null;
@@ -191,6 +278,7 @@ router.put('/edit-funcionario/:id', upload, async (req, res) => {
     // Validar dados com Joi
     const { error } = validateFuncionario.validate(req.body);
     if (error) {
+      console.log(error);
       return res.status(400).json({ error: error.details[0].message });
     }
 
@@ -200,7 +288,8 @@ router.put('/edit-funcionario/:id', upload, async (req, res) => {
     } = req.body;
 
     // Processar nova foto, se enviada
-    let fotoUrl = funcionarioExistente.foto;
+    let fotoUrlAWS = funcionarioExistente.foto;
+    let fotoUrl = null;
     if (req.files && req.files.foto) {
       const foto = req.files.foto[0];
       const fileName = `${Date.now()}.${foto.mimetype.split('/')[1]}`;
@@ -217,11 +306,21 @@ router.put('/edit-funcionario/:id', upload, async (req, res) => {
 
       await axios.put(s3UrlResponse, foto.buffer, { headers: { 'Content-Type': foto.mimetype } });
 
-      fotoUrl = s3Params.Key;
+      fotoUrlAWS = s3Params.Key;
+
+      const getObjectCommand = new GetObjectCommand({
+        Bucket: 'system-maranguape', // Substitua pelo seu nome de bucket
+        Key: fotoUrlAWS, // O caminho do arquivo no S3
+      });
+
+      const url = await getSignedUrl(s3Client, getObjectCommand, { expiresIn: 3600 });
+
+      fotoUrl = url
     }
 
     // Processar novo arquivo, se enviado
-    let arquivoUrl = funcionarioExistente.arquivo;
+    let arquivoUrl = null
+    let arquivoUrlAWS = funcionarioExistente.arquivo;
     if (req.files && req.files.arquivo) {
       const arquivo = req.files.arquivo[0];
       const fileName = `${Date.now()}.pdf`;
@@ -238,7 +337,16 @@ router.put('/edit-funcionario/:id', upload, async (req, res) => {
 
       await axios.put(s3UrlResponse, arquivo.buffer, { headers: { 'Content-Type': 'application/pdf' } });
 
-      arquivoUrl = s3Params.Key;
+      arquivoUrlAWS = s3Params.Key;
+
+      const getObjectCommand = new GetObjectCommand({
+        Bucket: 'system-maranguape', // Substitua pelo seu nome de bucket
+        Key: arquivoUrlAWS, // O caminho do arquivo no S3
+      });
+
+      const url = await getSignedUrl(s3Client, getObjectCommand, { expiresIn: 3600 });
+
+      arquivoUrl = url
     }
 
     // Atualizar o funcionário
@@ -246,7 +354,7 @@ router.put('/edit-funcionario/:id', upload, async (req, res) => {
       id,
       {
         nome,
-        foto: fotoUrl,
+        foto: fotoUrlAWS,
         secretaria,
         funcao,
         natureza,
@@ -264,9 +372,15 @@ router.put('/edit-funcionario/:id', upload, async (req, res) => {
       { new: true } // Retorna o documento atualizado
     );
 
-    await redisClient.del('setoresOrganizados');
+    const cacheKey = `setor:${setorFinal}:dados`;
+    await redisClient.del(cacheKey);
+    await redisClient.del("todos:funcionarios")
 
-    res.status(200).json(funcionarioAtualizado);
+    res.status(200).json({
+      ...funcionarioAtualizado.toObject(),
+      fotoUrl: funcionarioAtualizado.foto ? fotoUrl : null,
+      arquivoUrl: funcionarioAtualizado.arquivo ? arquivoUrl : null
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Erro ao atualizar funcionário' });
@@ -274,11 +388,14 @@ router.put('/edit-funcionario/:id', upload, async (req, res) => {
 });
 
 
+
 // Rota para deletar os usuários
 router.delete('/delete-users', async (req, res) => {
   const { userIds } = req.body; // Recebe os IDs dos usuários para deletar
 
   const usuariosObjectIds = userIds.map(id => mongoose.Types.ObjectId.createFromHexString(id)); // Alterado para novo método
+
+  const setoresAfetados = new Set(); // Armazena os IDs únicos dos setores afetados
 
   try {
     // Encontrar os usuários que serão deletados
@@ -293,13 +410,27 @@ router.delete('/delete-users', async (req, res) => {
         { _id: coordenadoriaId },
         { $pull: { funcionarios: usuario._id } }
       );
+
+      // Busca o setor pai com base no `coordenadoriaId`
+      const setor = await Setor.findOne({ _id: coordenadoriaId });
+
+      if (setor?.parent) {
+        setoresAfetados.add(setor.parent); // Adiciona o ID do setor pai ao Set
+      }
+
+    }
+
+    // Limpa o cache de todos os setores afetados
+    for (const setorId of setoresAfetados) {
+      const cacheKey = `setor:${setorId}:dados`;
+      await redisClient.del(cacheKey);
     }
 
     // Deleta os usuários do banco de dados
     await Funcionario.deleteMany({ _id: { $in: usuariosObjectIds } });
 
     // Limpa o cache de setores organizados
-    await redisClient.del('setoresOrganizados');
+    await redisClient.del("todos:funcionarios")
 
     res.status(200).json({ message: 'Usuários deletados com sucesso e removidos de todos os setores.' });
   } catch (error) {
@@ -320,23 +451,27 @@ router.put('/editar-coordenadoria-usuario', async (req, res) => {
     const usuariosObjectIds = usuariosIds.map(id => mongoose.Types.ObjectId.createFromHexString(id));
     const coordenadoriaObjectId = mongoose.Types.ObjectId.createFromHexString(coordenadoriaId);
 
-
+    const setoresAfetados = new Set(); // Armazena os setores afetados para limpar o cache posteriormente
 
     // Remover os usuários dos setores antigos onde eles estavam
     for (let usuarioId of usuariosObjectIds) {
       const usuario = await Funcionario.findById(usuarioId);
       if (!usuario) continue;
 
-      const coordenadoria = await Setor.findById(usuario.coordenadoria);
+      // Busca a coordenadoria antiga do usuário
+      const coordenadoriaAntiga = await Setor.findById(usuario.coordenadoria);
 
+      // Se a coordenadoria antiga existir, adiciona seu setor pai ao conjunto
+      if (coordenadoriaAntiga?.parent) {
+        setoresAfetados.add(coordenadoriaAntiga.parent);
+      }
 
-      // removendo o funcionário diretamente da coordenadoria anterior
+      // Remove o funcionário diretamente da coordenadoria anterior
       await Setor.updateMany(
         { _id: usuario.coordenadoria },
         { $pull: { funcionarios: usuario._id } }
       );
     }
-
 
     // Adiciona os usuários aos setores da coordenadoria atual
     const result = await Setor.updateMany(
@@ -344,19 +479,30 @@ router.put('/editar-coordenadoria-usuario', async (req, res) => {
       { $addToSet: { funcionarios: { $each: usuariosObjectIds } } } // Adiciona os usuários aos setores
     );
 
-
     if (result) {
-
       // Atualiza os usuários com o novo ID de coordenadoria
       await Funcionario.updateMany(
         { _id: { $in: usuariosObjectIds } },
         { $set: { coordenadoria: coordenadoriaObjectId } }
       );
 
-      const usuariosModificados = await Funcionario.find({ _id: { $in: usuariosObjectIds } });
+      // Adiciona o setor pai da nova coordenadoria ao conjunto
+      const coordenadoriaAtual = await Setor.findById(coordenadoriaObjectId);
+      if (coordenadoriaAtual?.parent) {
+        setoresAfetados.add(coordenadoriaAtual.parent);
+      }
 
-      // Limpa o cache de setores organizados
-      await redisClient.del('setoresOrganizados');
+      // Limpa o cache de todos os setores afetados
+      for (const setorId of setoresAfetados) {
+        const cacheKey = `setor:${setorId}:dados`;
+        await redisClient.del(cacheKey);
+      }
+
+      // Limpa o cache global de setores organizados
+      await redisClient.del("todos:funcionarios")
+
+      // Retorna os usuários atualizados
+      const usuariosModificados = await Funcionario.find({ _id: { $in: usuariosObjectIds } });
       return res.status(200).send(usuariosModificados);
     } else {
       return res.status(404).send('Nenhum usuário encontrado ou atualizado.');
@@ -366,6 +512,7 @@ router.put('/editar-coordenadoria-usuario', async (req, res) => {
     res.status(500).send('Erro interno no servidor');
   }
 });
+
 
 
 module.exports = router;

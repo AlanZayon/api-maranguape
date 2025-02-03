@@ -19,7 +19,8 @@ const app = express();
 const allowedOrigins = [
  'https://heroic-alfajores-da3394.netlify.app',
   'https://interface-sistema-maranguape.vercel.app',
-  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5173'
 ];
 
 const corsOptions = {
