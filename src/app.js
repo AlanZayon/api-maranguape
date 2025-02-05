@@ -2,6 +2,7 @@ const express = require('express');
 const helmet = require('helmet');
 const compression = require('compression');
 const cors = require('cors');
+const morgan = require('morgan');
 const bcrypt = require('bcryptjs')
 const Cookies = require('cookies'); // Importar a biblioteca cookies
 const rateLimit = require('express-rate-limit');
@@ -35,6 +36,7 @@ const corsOptions = {
 };
 
 // Middlewares globais
+app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
@@ -58,7 +60,7 @@ redis.on('error', (err) => {
 
 // Configuração do rate limit
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
+  windowMs: 60 * 1000, // 15 minutos
   max: 100, // Limita a 100 requisições por 15 minutos
 });
 app.use(limiter);
