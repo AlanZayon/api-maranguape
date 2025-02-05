@@ -211,4 +211,50 @@ router.put('/rename/:id', async (req, res) => {
   }
 });
 
+// Rota para deletar um setor e seus filhos (subsetores e coordenadorias)
+router.delete('/del/:id', async (req, res) => {
+  const { id } = req.params;
+  console.log(id);
+
+  try {
+    // Função recursiva para deletar todos os filhos
+    const deleteAllChildren = async (setorId) => {
+      // Encontra todos os filhos do setor
+      const filhos = await Setor.find({ parent: setorId });
+
+      // Para cada filho, deletamos recursivamente seus filhos e o próprio
+      for (const filho of filhos) {
+        await deleteAllChildren(filho._id); // Deleta os filhos desse filho
+        await Setor.findByIdAndDelete(filho._id); // Deleta o filho
+      }
+    };
+
+    // Encontra o setor principal pelo ID
+    const setor = await Setor.findById(id);
+    
+    if (!setor) {
+      console.log('Setor não encontrado')
+      return res.status(404).json({ message: 'Setor não encontrado' });
+    }
+
+    // Deleta todos os filhos do setor de forma recursiva
+    await deleteAllChildren(id);
+
+    // Deleta o setor principal
+    await Setor.findByIdAndDelete(id);
+
+    // Remover o cache relacionado ao setor deletado e seus filhos
+    await redisClient.del(`setor:${setor.parent}:dados`);
+    await redisClient.del('setores:null');
+    await redisClient.del('setoresOrganizados');
+    
+    return res.status(200).json({ message: 'Setor e seus filhos deletados com sucesso' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Erro ao deletar o setor e seus filhos' });
+  }
+});
+
+
+
 module.exports = router;
