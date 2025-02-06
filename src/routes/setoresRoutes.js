@@ -124,14 +124,12 @@ router.get('/setoresMain', async (req, res) => {
 router.get('/dados/:setorId', async (req, res) => {
   try {
     const { setorId } = req.params;
-    console.log(setorId)
     const cacheKey = `setor:${setorId}:dados`;
 
     // Tenta obter os dados do cache
     const cacheData = await redisClient.get(cacheKey);
 
     if (cacheData) {
-      console.log(cacheData,'Cache hit');
       return res.json(JSON.parse(cacheData));
     }
 
@@ -141,7 +139,6 @@ router.get('/dados/:setorId', async (req, res) => {
     const subsetores = await Setor.find({ parent: setorId, tipo: 'Subsetor' });
     const coordenadorias = await Setor.find({ parent: setorId, tipo: 'Coordenadoria' });
 
-    console.log(subsetores)
 
     // Buscar funcionários para as coordenadorias (caso necessário)
     const funcionarios = await Funcionario.find();
@@ -214,7 +211,6 @@ router.put('/rename/:id', async (req, res) => {
 // Rota para deletar um setor e seus filhos (subsetores e coordenadorias)
 router.delete('/del/:id', async (req, res) => {
   const { id } = req.params;
-  console.log(id);
 
   try {
     // Função recursiva para deletar todos os filhos
@@ -233,7 +229,6 @@ router.delete('/del/:id', async (req, res) => {
     const setor = await Setor.findById(id);
     
     if (!setor) {
-      console.log('Setor não encontrado')
       return res.status(404).json({ message: 'Setor não encontrado' });
     }
 

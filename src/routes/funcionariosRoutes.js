@@ -68,11 +68,10 @@ router.get('/buscarFuncionarios', async (req, res) => {
       };
     }));
 
-    console.log(funcionariosComUrls);
 
     // Armazena os dados no cache por 1 hora
     await redisClient.setex(cacheKey, 3600, JSON.stringify(funcionariosComUrls));
-    
+
 
     res.json(funcionariosComUrls);
   } catch (err) {
@@ -86,7 +85,6 @@ router.post('/:setorId', upload, async (req, res) => {
   try {
 
     const { setorId } = req.params;
-    console.log("setores", setorId)
 
     if (!setorId) {
       return res.status(400).json({ error: 'setor inválida' });
@@ -237,7 +235,6 @@ router.post('/:setorId', upload, async (req, res) => {
 router.put('/edit-funcionario/:id/:setorId?', upload, async (req, res) => {
   try {
     const { id, setorId } = req.params;
-    console.log("setorid inicial", setorId);
 
     // Verificar se o funcionário existe
     const funcionarioExistente = await Funcionario.findById(id);
@@ -260,7 +257,6 @@ router.put('/edit-funcionario/:id/:setorId?', upload, async (req, res) => {
       }
 
       setorFinal = coordenadoria.parent; // Definir setorId como o parent da coordenadoria
-      console.log("setorid definido", setorFinal);
     }
 
     // Converta redesSociais e observacoes para arrays, se presentes
@@ -270,7 +266,6 @@ router.put('/edit-funcionario/:id/:setorId?', upload, async (req, res) => {
     if (req.body.observacoes) {
       req.body.observacoes = JSON.parse(req.body.observacoes);
     }
-    console.log("foto",req.body.foto);
 
     if (req.body.foto === 'null') req.body.foto = null;
     if (req.body.arquivo === 'null') req.body.arquivo = null;
@@ -278,7 +273,6 @@ router.put('/edit-funcionario/:id/:setorId?', upload, async (req, res) => {
     // Validar dados com Joi
     const { error } = validateFuncionario.validate(req.body);
     if (error) {
-      console.log(error);
       return res.status(400).json({ error: error.details[0].message });
     }
 
@@ -513,6 +507,29 @@ router.put('/editar-coordenadoria-usuario', async (req, res) => {
   }
 });
 
+// Rota para deletar os usuários
+router.put('/observacoes/:userId/:setorFinal', async (req, res) => {
+  const { userId } = req.params;
+  const { setorFinal } = req.params;
+  const { observacoes } = req.body;
 
+  try {
+    const user = await Funcionario.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ error: 'Usuário não encontrado.' });
+    }
+
+    user.observacoes = observacoes; // Atualizando as observações
+    await user.save();
+
+    const cacheKey = `setor:${setorFinal}:dados`;
+    await redisClient.del(cacheKey);
+    await redisClient.del("todos:funcionarios")
+    res.status(200).json({ message: 'Observações atualizadas com sucesso.', observacoes: user.observacoes });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao atualizar observações.' });
+  }
+});
 
 module.exports = router;
