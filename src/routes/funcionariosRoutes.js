@@ -1,15 +1,18 @@
 const express = require('express');
+const path = require('path');
 const router = express.Router();
 const mongoose = require('mongoose');
 const axios = require('axios');
 const Funcionario = require('../models/funcionariosSchema');
 const Setor = require('../models/setoresSchema');
+const PDFDocument = require("pdfkit");
 const s3Client = require('../config/aws');
 const { PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const validateFuncionario = require('../validates/validateFuncionario');
 const upload = require('../config/multerConfig');
-const redisClient = require("../config/redisClient"); // Importa o cliente Redis exportado no app.js
+const redisClient = require("../config/redisClient"); 
+
 
 async function obterSetoresAncestrais(setorId) {
   const setoresAncestrais = [];
@@ -108,6 +111,7 @@ router.post('/:setorId', upload, async (req, res) => {
 
     const { error } = validateFuncionario.validate(req.body);
     if (error) {
+      console.log("caiu aqui no 1")
       console.error(error);
       console.error(error.details[0].message);
       return res.status(400).json({ error: error.details[0].message });
@@ -273,6 +277,7 @@ router.put('/edit-funcionario/:id/:setorId?', upload, async (req, res) => {
     // Validar dados com Joi
     const { error } = validateFuncionario.validate(req.body);
     if (error) {
+      console.log("caiu aq no 2")
       return res.status(400).json({ error: error.details[0].message });
     }
 
@@ -531,5 +536,111 @@ router.put('/observacoes/:userId/:setorFinal', async (req, res) => {
     res.status(500).json({ error: 'Erro ao atualizar observações.' });
   }
 });
+
+router.post('/relatorio-funcionarios/gerar', async (req, res) => {
+  const { ids } = req.body;
+
+  console.log("IDs dos funcionários: ", ids);
+
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: "Envie uma lista de IDs válida." });
+  }
+
+  try {
+    const doc = new PDFDocument({ size: "A4", margins: { top: 100, left: 50, right: 50, bottom: 50 } });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", "attachment; filename=relatorio.pdf");
+
+    doc.pipe(res);
+
+    const logoPath = path.join(__dirname, '../../images/link65.png'); 
+    const logoWidth = 150; 
+    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const logoX = (pageWidth - logoWidth) / 2 + doc.page.margins.left; 
+    doc.image(logoPath, logoX, 10, { width: 100 }).moveDown(2);
+
+    const funcionariosSelecionados = await Funcionario.find({ _id: { $in: ids } });
+    const totalFuncionarios = await Funcionario.countDocuments();
+
+    // Estilo para títulos
+    doc.font("Helvetica-Bold").fontSize(20).fillColor('#333333');
+
+    if (funcionariosSelecionados.length === 1) {
+      // Relatório Individual
+      const f = funcionariosSelecionados[0];
+
+      doc.text("Relatório Individual", { align: "center" }).moveDown(2);
+      doc.fontSize(14).fillColor('#555555')
+         .text(`Nome: ${f.nome}`)
+         .text(`Secretaria: ${f.secretaria}`)
+         .text(`Função: ${f.funcao}`)
+         .text(`Natureza: ${f.natureza}`)
+         .text(`Referência: ${f.referencia}`)
+         .text(`Salário Bruto: R$ ${f.salarioBruto.toFixed(2)}`)
+         .text(`Salário Líquido: R$ ${f.salarioLiquido.toFixed(2)}`)
+         .text(`Endereço: ${f.endereco}`)
+         .text(`Bairro: ${f.bairro}`)
+         .text(`Telefone: ${f.telefone}`);
+    } else {
+      // Relatório Geral
+      doc.text("Relatório de Funcionários", { align: "center" }).moveDown(2);
+
+      // Cálculo das médias salariais
+      const totalSalarioBruto = funcionariosSelecionados.reduce((sum, f) => sum + f.salarioBruto, 0);
+      const totalSalarioLiquido = funcionariosSelecionados.reduce((sum, f) => sum + f.salarioLiquido, 0);
+      const mediaSalarioBruto = totalSalarioBruto / funcionariosSelecionados.length;
+      const mediaSalarioLiquido = totalSalarioLiquido / funcionariosSelecionados.length;
+
+      // Cálculo das referências
+      const totalReferencias = {};
+      funcionariosSelecionados.forEach(f => {
+        totalReferencias[f.referencia] = (totalReferencias[f.referencia] || 0) + 1;
+      });
+
+      // Cálculo das referências na empresa
+      const referenciasEmpresa = await Funcionario.aggregate([
+        { $group: { _id: "$referencia", total: { $sum: 1 } } },
+      ]);
+
+      // Cálculo dos bairros
+      const totalBairros = {};
+      funcionariosSelecionados.forEach(f => {
+        totalBairros[f.bairro] = (totalBairros[f.bairro] || 0) + 1;
+      });
+
+      // Relatório de referências
+      doc.fontSize(14).fillColor('#333333').text("Referências", { underline: true }).moveDown();
+      for (const [ref, qtd] of Object.entries(totalReferencias)) {
+        const totalRefEmpresa = referenciasEmpresa.find(r => r._id === ref)?.total || 0;
+        const percentEmpresa = ((totalRefEmpresa / totalFuncionarios) * 100).toFixed(2);
+        const percentRequisicao = ((qtd / funcionariosSelecionados.length) * 100).toFixed(2);
+        doc.fontSize(12).fillColor('#555555')
+           .text(`${ref}: Total dos enviados ${qtd} (${percentRequisicao}% dos enviados, ${percentEmpresa}% da empresa)`);
+      }
+      doc.moveDown();
+
+      // Relatório de médias salariais
+      doc.fontSize(14).fillColor('#333333').text("Média Salarial", { underline: true }).moveDown();
+      doc.fontSize(12).fillColor('#555555')
+         .text(`Média Salário Bruto: R$ ${mediaSalarioBruto.toFixed(2)}`)
+         .text(`Média Salário Líquido: R$ ${mediaSalarioLiquido.toFixed(2)}`);
+      doc.moveDown();
+
+      // Relatório de bairros
+      doc.fontSize(14).fillColor('#333333').text("Distribuição por Bairros", { underline: true }).moveDown();
+      for (const [bairro, qtd] of Object.entries(totalBairros)) {
+        const percentBairro = ((qtd / funcionariosSelecionados.length) * 100).toFixed(2);
+        doc.fontSize(12).fillColor('#555555')
+           .text(`${bairro}: ${qtd} (${percentBairro}%)`);
+      }
+    }
+
+    doc.end();
+  } catch (err) {
+    console.error("Erro ao gerar relatório:", err);
+    res.status(500).send("Erro interno no servidor.");
+  }
+});
+
 
 module.exports = router;
