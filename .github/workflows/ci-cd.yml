@@ -35,8 +35,6 @@ jobs:
 
     - name: Definir variáveis de ambiente
       run: echo "REDIS_URL=redis://127.0.0.1:6379" >> $GITHUB_ENV
-           echo "MONGODB_URI=mongodb://localhost:27017/test" >> $GITHUB_ENV 
-         
 
     - name: Rodar os testes
       run: npm test
