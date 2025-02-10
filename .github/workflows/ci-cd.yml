@@ -44,6 +44,12 @@ jobs:
     - name: Checar código
       uses: actions/checkout@v2
 
+    - name: Configurar estratégia de pull do Git
+      run: git config pull.rebase false
+  
+    - name: Atualizar branch local antes do push
+      run: git pull origin main --no-rebase
+
     - name: Deploy para o OnRender
       env:
         RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}  # Chave API do OnRender
