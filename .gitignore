@@ -24,7 +24,3 @@ dist/
 # Ignorar arquivos de backup
 *.bak
 
-# Ignorar arquivos de teste
-tests/
-test/
-
