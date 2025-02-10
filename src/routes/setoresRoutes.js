@@ -53,45 +53,45 @@ router.post('/', async (req, res) => {
 });
 
 // Rota para buscar todos os setores, subsetores e coordenadorias organizados
-router.get('/setoresOrganizados', async (req, res) => {
-  try {
+// router.get('/setoresOrganizados', async (req, res) => {
+//   try {
 
-    const cacheKey = 'setoresOrganizados';
-    const cacheData = await redisClient.get(cacheKey);
+//     const cacheKey = 'setoresOrganizados';
+//     const cacheData = await redisClient.get(cacheKey);
 
-    if (cacheData) {
-      console.log('Cache hit');
-      return res.json({ setores: JSON.parse(cacheData) });
-    }
+//     if (cacheData) {
+//       console.log('Cache hit');
+//       return res.json({ setores: JSON.parse(cacheData) });
+//     }
 
-    console.log('Cache miss');
-    const setores = await Setor.find();
+//     console.log('Cache miss');
+//     const setores = await Setor.find();
   
-    const organizarSetores = async (parentId = null) => {
-      const setoresFiltrados = setores.filter(setor => String(setor.parent) === String(parentId));
+//     const organizarSetores = async (parentId = null) => {
+//       const setoresFiltrados = setores.filter(setor => String(setor.parent) === String(parentId));
   
-      return await Promise.all(setoresFiltrados.map(async (setor) => {
-        const subsetoresOrganizados = await organizarSetores(setor._id);
-        const subsetores = subsetoresOrganizados.filter(subsetor => subsetor.tipo === 'Subsetor');
-        const coordenadorias = subsetoresOrganizados.filter(coordenadoria => coordenadoria.tipo === 'Coordenadoria');
+//       return await Promise.all(setoresFiltrados.map(async (setor) => {
+//         const subsetoresOrganizados = await organizarSetores(setor._id);
+//         const subsetores = subsetoresOrganizados.filter(subsetor => subsetor.tipo === 'Subsetor');
+//         const coordenadorias = subsetoresOrganizados.filter(coordenadoria => coordenadoria.tipo === 'Coordenadoria');
   
-        return {
-          ...setor.toObject(),
-          subsetores: subsetores.length > 0 ? subsetores : [],
-          coordenadorias: coordenadorias.length > 0 ? coordenadorias : []
-        };
-      }));
-    };
+//         return {
+//           ...setor.toObject(),
+//           subsetores: subsetores.length > 0 ? subsetores : [],
+//           coordenadorias: coordenadorias.length > 0 ? coordenadorias : []
+//         };
+//       }));
+//     };
   
-    const setoresOrganizados = await organizarSetores();
-    await redisClient.setex(cacheKey, 3600, JSON.stringify(setoresOrganizados));
-    res.json({ setores: setoresOrganizados });
+//     const setoresOrganizados = await organizarSetores();
+//     await redisClient.setex(cacheKey, 3600, JSON.stringify(setoresOrganizados));
+//     res.json({ setores: setoresOrganizados });
   
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Erro ao buscar dados');
-  }  
-});
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).send('Erro ao buscar dados');
+//   }  
+// });
 
 
 router.get('/setoresMain', async (req, res) => {
