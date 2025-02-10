@@ -1,0 +1,45 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main  # Aciona o pipeline para commits na branch principal
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checar código
+      uses: actions/checkout@v2
+
+    - name: Configurar Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '16'
+
+    - name: Instalar dependências
+      run: npm install
+
+    - name: Rodar os testes
+      run: npm test
+
+    - name: Rodar linting
+      run: npm run lint
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build  # Só roda após o job de build ter sido concluído com sucesso
+
+    steps:
+    - name: Checar código
+      uses: actions/checkout@v2
+
+    - name: Deploy para o OnRender
+      env:
+        RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}  # Chave API do OnRender
+      run: |
+        curl -X POST \
+          -H "Authorization: Bearer $RENDER_API_KEY" \
+          -d '{"branch": "main"}' \
+          https://api.onrender.com/v1/services/srv-cu73jaq3esus73ffmn4g/deploy
