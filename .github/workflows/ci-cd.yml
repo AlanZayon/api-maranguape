@@ -9,6 +9,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+
     steps:
     - name: Checar código
       uses: actions/checkout@v2
@@ -16,10 +22,21 @@ jobs:
     - name: Configurar Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '16'
+        node-version: '18'
 
     - name: Instalar dependências
       run: npm install
+
+
+
+       # Configuração do MongoDB in-memory
+    - name: Configurar MongoDB in-memory
+      run: npm install mongodb-memory-server --save-dev  
+
+    - name: Definir variáveis de ambiente
+      run: echo "REDIS_URL=redis://127.0.0.1:6379" >> $GITHUB_ENV
+           echo "MONGODB_URI=mongodb://localhost:27017/test" >> $GITHUB_ENV 
+         
 
     - name: Rodar os testes
       run: npm test
@@ -34,6 +51,7 @@ jobs:
     steps:
     - name: Checar código
       uses: actions/checkout@v2
+
 
     - name: Deploy para o OnRender
       env:
