@@ -16,9 +16,9 @@ describe('Testes de Setores', () => {
 
     // Configuração do MongoDB em memória
     mongoServer = await MongoMemoryServer.create();
-    const uri = mongoServer.getUri();
+    const uriB = mongoServer.getUri();
 
-    await mongoose.connect(uri);
+    await mongoose.connect(uriB);
 
     const novoSetor = {
       nome: 'Setor Teste',
