@@ -28,7 +28,10 @@ jobs:
       run: npm install
 
     - name: Definir variáveis de ambiente
-      run: echo "REDIS_URL=redis://127.0.0.1:6379" >> $GITHUB_ENV
+      run: |
+           echo "REDIS_URL=redis://127.0.0.1:6379" >> $GITHUB_ENV
+           echo "MONGO_URI=mongodb://localhost:27017/test" >> $GITHUB_ENV  
+
 
     - name: Rodar os testes
       run: npm test
