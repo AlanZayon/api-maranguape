@@ -14,18 +14,11 @@ describe('Testes de Setores', () => {
   // Criação do setor no beforeAll, para garantir que o ID será utilizado nos testes seguintes
   beforeAll(async () => {
 
-    try {
-      mongoServer = await MongoMemoryServer.create();
-      console.log('MongoMemoryServer iniciado com sucesso!');
-      const uri = mongoServer.getUri();
-      console.log('URI do MongoDB em memória:', uri);
-  
-      await mongoose.connect(uri);
-      console.log('Conexão com MongoDB estabelecida com sucesso!');
-    } catch (error) {
-      console.error('Erro ao configurar o MongoDB em memória:', error);
-      throw error; // Interrompe os testes caso falhe
-    }
+    // Configuração do MongoDB em memória
+    mongoServer = await MongoMemoryServer.create();
+    const uri = mongoServer.getUri();
+
+    await mongoose.connect(uri);
 
     const novoSetor = {
       nome: 'Setor Teste',
