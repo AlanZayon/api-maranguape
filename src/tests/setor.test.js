@@ -1,7 +1,10 @@
 const request = require('supertest');
 const app = require('../app');  // Substitua pelo seu app Express
 const Setor = require('../models/setoresSchema');  // Importa o modelo de Setor
+const { MongoMemoryServer } = require('mongodb-memory-server');
+const mongoose = require('mongoose');
 
+let mongoServer;
 let setorId;
 let subSetorId;
 let coordenadoriaId;
@@ -10,6 +13,13 @@ describe('Testes de Setores', () => {
 
   // Criação do setor no beforeAll, para garantir que o ID será utilizado nos testes seguintes
   beforeAll(async () => {
+
+    // Configuração do MongoDB em memória
+    mongoServer = await MongoMemoryServer.create();
+    const uri = mongoServer.getUri();
+
+    await mongoose.connect(uri);
+
     const novoSetor = {
       nome: 'Setor Teste',
       tipo: 'Setor',
@@ -121,5 +131,7 @@ describe('Testes de Setores', () => {
       await Setor.findByIdAndDelete(setorId);
       await Setor.findByIdAndDelete(subSetorId);
     }
+    await mongoose.disconnect();
+    await mongoServer.stop();
   });
 });
