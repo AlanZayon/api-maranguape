@@ -44,9 +44,6 @@ jobs:
     - name: Checar código
       uses: actions/checkout@v2
 
-    - name: Atualizar branch local antes do push
-      run: git pull --no-edit origin main
-
 
     - name: Deploy para o OnRender
       env:
