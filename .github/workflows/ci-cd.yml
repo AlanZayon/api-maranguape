@@ -27,11 +27,8 @@ jobs:
     - name: Instalar dependências
       run: npm install
 
-
-
-       # Configuração do MongoDB in-memory
-    - name: Configurar MongoDB in-memory
-      run: npm install mongodb-memory-server --save-dev  
+    - name: Set up MongoDB Atlas credentials
+      run: echo "MONGO_URI=$MONGO_URI" >> $GITHUB_ENV
 
     - name: Definir variáveis de ambiente
       run: echo "REDIS_URL=redis://127.0.0.1:6379" >> $GITHUB_ENV
