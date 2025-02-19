@@ -56,7 +56,7 @@ redis.on('error', (err) => {
   console.error('Erro no Redis:', err);
 });
 
-// app.use("api/usuarios", usuarioRoute);
+app.set('trust proxy', 1);
 
 // Configuração do rate limit
 const limiter = rateLimit({
