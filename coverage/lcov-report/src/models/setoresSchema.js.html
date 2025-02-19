@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">90% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>9/10</span>
+                <span class='fraction'>0/10</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">50% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>2/4</span>
+                <span class='fraction'>0/4</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">50% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>1/2</span>
+                <span class='fraction'>0/3</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">90% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>9/10</span>
+                <span class='fraction'>0/9</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line low'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -100,12 +100,11 @@
 <a name='L35'></a><a href='#L35'>35</a>
 <a name='L36'></a><a href='#L36'>36</a>
 <a name='L37'></a><a href='#L37'>37</a>
-<a name='L38'></a><a href='#L38'>38</a>
-<a name='L39'></a><a href='#L39'>39</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<a name='L38'></a><a href='#L38'>38</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -129,21 +128,20 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">4x</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const mongoose = require('mongoose');
-const dbFuncionarios = require("../config/Mongoose/funcionariosConnection");
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const mongoose = <span class="cstat-no" title="statement not covered" >require('mongoose');</span>
+const dbFuncionarios = <span class="cstat-no" title="statement not covered" >require("../config/Mongoose/funcionariosConnection");</span>
 &nbsp;
 // Esquema de coordenadoria
-const setorSchema = new mongoose.Schema({
+const setorSchema = <span class="cstat-no" title="statement not covered" >new mongoose.Schema({</span>
   nome: { type: String, required: true },
   tipo: { 
     type: String, 
@@ -167,16 +165,15 @@ const setorSchema = new mongoose.Schema({
 });
 &nbsp;
 // Middleware para ajustar o campo 'funcionarios'
-setorSchema.pre('save', function(next) {
-  if (this.tipo !== 'Coordenadoria') {
-    this.funcionarios = []; // Limpa o campo 'funcionarios' se o tipo não for 'Coordenadoria'
+<span class="cstat-no" title="statement not covered" >setorSchema.pre('save', <span class="fstat-no" title="function not covered" >fu</span>nction(next) {</span>
+<span class="cstat-no" title="statement not covered" >  if (this.tipo !== 'Coordenadoria') {</span>
+<span class="cstat-no" title="statement not covered" >    this.funcionarios = []; </span>// Limpa o campo 'funcionarios' se o tipo não for 'Coordenadoria'
   }
-  next();
+<span class="cstat-no" title="statement not covered" >  next();</span>
 });
 &nbsp;
-const Setor = dbFuncionarios.model('Setor', setorSchema);
+<span class="cstat-no" title="statement not covered" >module.exports = dbFuncionarios.then(<span class="fstat-no" title="function not covered" >db</span> =&gt; <span class="cstat-no" title="statement not covered" >db.model('Setor', setorSchema))</span>;</span>
 &nbsp;
-module.exports = Setor;
 &nbsp;</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
@@ -184,7 +181,7 @@ module.exports = Setor;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-02-10T23:05:19.234Z
+                at 2025-02-19T17:48:01.513Z
             </div>
         <script src="../../prettify.js"></script>
         <script>
