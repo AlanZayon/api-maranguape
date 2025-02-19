@@ -1,24 +1,19 @@
 const request = require('supertest');
 const app = require('../app');  // Substitua pelo seu app Express
-const Setor = require('../models/setoresSchema');  // Importa o modelo de Setor
-const { MongoMemoryServer } = require('mongodb-memory-server');
-const mongoose = require('mongoose');
+const dbPromise = require('../config/Mongoose/funcionariosConnection');
 
-let mongoServer;
-let setorId;
-let subSetorId;
-let coordenadoriaId;
+
+let db;
+let Setor;
+let setorId, subSetorId, coordenadoriaId;
 
 describe('Testes de Setores', () => {
 
   // Criação do setor no beforeAll, para garantir que o ID será utilizado nos testes seguintes
   beforeAll(async () => {
 
-    // Configuração do MongoDB em memória
-    mongoServer = await MongoMemoryServer.create();
-    const uri = mongoServer.getUri();
-
-    await mongoose.connect(uri);
+    db = await dbPromise; // Aguarda a conexão ser estabelecida
+    Setor = db.model('Setor'); // Obtém o modelo conectado ao banco
 
     const novoSetor = {
       nome: 'Setor Teste',
@@ -127,11 +122,10 @@ describe('Testes de Setores', () => {
 
   // Limpeza dos dados criados após os testes
   afterAll(async () => {
-    if (setorId || subSetorId) {
-      await Setor.findByIdAndDelete(setorId);
-      await Setor.findByIdAndDelete(subSetorId);
+    await db.dropDatabase(); // Limpa o banco após os testes
+    await db.close();
+    if (global.mongoServer) {
+      await global.mongoServer.stop();
     }
-    await mongoose.disconnect();
-    await mongoServer.stop();
   });
 });
