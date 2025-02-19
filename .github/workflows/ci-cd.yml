@@ -27,8 +27,11 @@ jobs:
     - name: Instalar dependências
       run: npm install
 
-    - name: Set up MongoDB Atlas credentials
-      run: echo "MONGO_CONNECTING_FUNCIONARIOS=$MONGO_CONNECTING_FUNCIONARIOS" >> $GITHUB_ENV
+    - name: Check environment variables
+      run: echo "MONGO_CONNECTING_FUNCIONARIOS is set"
+      env:
+        MONGO_CONNECTING_FUNCIONARIOS: ${{ secrets.MONGO_CONNECTING_FUNCIONARIOS }}
+    
 
     - name: Definir variáveis de ambiente
       run: echo "REDIS_URL=redis://127.0.0.1:6379" >> $GITHUB_ENV
