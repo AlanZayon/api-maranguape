@@ -1,6 +1,7 @@
 const request = require('supertest');
 const app = require('../app');  // Substitua pelo seu app Express
 const Setor = require('../models/setoresSchema');  // Importa o modelo de Setor
+const db = require('../config/Mongoose/funcionariosConnection');
 const mongoose = require('mongoose');
 
 let setorId;
@@ -11,6 +12,7 @@ describe('Testes de Setores', () => {
 
   // Criação do setor no beforeAll, para garantir que o ID será utilizado nos testes seguintes
   beforeAll(async () => {
+
 
     const novoSetor = {
       nome: 'Setor Teste',
@@ -123,6 +125,6 @@ describe('Testes de Setores', () => {
       await Setor.findByIdAndDelete(setorId);
       await Setor.findByIdAndDelete(subSetorId);
     }
-    await mongoose.disconnect();
-  });
+    await mongoose.connection.close();
+    });
 });
