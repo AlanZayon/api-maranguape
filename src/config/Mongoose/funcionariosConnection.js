@@ -1,21 +1,10 @@
 const dotenv = require('dotenv');
-const mongoose = require("mongoose");
-const { MongoMemoryServer } = require('mongodb-memory-server');
-
+const mongooseFuncionarios = require("mongoose");
 dotenv.config();
 
-const connectDB = async () => {
-  if (process.env.NODE_ENV === 'test') {
-    // Se for um ambiente de teste, use MongoDB Memory Server
-    global.mongoServer = await MongoMemoryServer.create();
-    const uri = global.mongoServer.getUri();
-    return mongoose.createConnection(uri);
-  } else {
-    // Se não for teste, usa a conexão normal
-    return mongoose.createConnection(process.env.MONGO_CONNECTING_FUNCIONARIOS);
-  }
-};
 
-const dbPromise = connectDB(); // Cria a conexão com o banco
+const db = mongooseFuncionarios.createConnection(process.env.MONGO_CONNECTING_FUNCIONARIOS);
 
-module.exports = dbPromise;
+db.on('error', console.error.bind(console, 'Erro na conexão com MongoDB:'));
+ db.once('open', () => { console.log('Conectado ao MongoDB'); });
+module.exports = db;

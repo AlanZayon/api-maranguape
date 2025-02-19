@@ -1,10 +1,8 @@
 const request = require('supertest');
 const app = require('../app');  // Substitua pelo seu app Express
+const Setor = require('../models/setoresSchema');
 const dbPromise = require('../config/Mongoose/funcionariosConnection');
 
-
-let db;
-let Setor;
 let setorId, subSetorId, coordenadoriaId;
 
 describe('Testes de Setores', () => {
@@ -12,8 +10,7 @@ describe('Testes de Setores', () => {
   // Criação do setor no beforeAll, para garantir que o ID será utilizado nos testes seguintes
   beforeAll(async () => {
 
-    db = await dbPromise; // Aguarda a conexão ser estabelecida
-    Setor = db.model('Setor'); // Obtém o modelo conectado ao banco
+    db = await dbPromise;
 
     const novoSetor = {
       nome: 'Setor Teste',

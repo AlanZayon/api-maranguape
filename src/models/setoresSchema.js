@@ -33,5 +33,6 @@ setorSchema.pre('save', function(next) {
   next();
 });
 
-module.exports = dbFuncionarios.then(db => db.model('Setor', setorSchema));
+const Setor = dbFuncionarios.model('Setor', setorSchema);
 
+module.exports = Setor;
