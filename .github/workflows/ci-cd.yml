@@ -28,11 +28,19 @@ jobs:
       run: npm install
 
     - name: Check environment variables
-      run: echo "MONGO_CONNECTING_FUNCIONARIOS is set"
+      run: |
+        if [[ -z "$MONGO_CONNECTING_FUNCIONARIOS" || -z "$MONGO_CONNECTING_USUARIOS" ]]; then
+          echo " One or both environment variables are not set"
+          exit 1
+        else
+          echo " MONGO_CONNECTING_FUNCIONARIOS and MONGO_CONNECTING_USUARIOS are set"
+        fi
+      shell: bash
       env:
         MONGO_CONNECTING_FUNCIONARIOS: ${{ secrets.MONGO_CONNECTING_FUNCIONARIOS }}
+        MONGO_CONNECTING_USUARIOS: ${{ secrets.MONGO_CONNECTING_USUARIOS }}
     
-
+        
     - name: Definir variáveis de ambiente
       run: echo "REDIS_URL=redis://127.0.0.1:6379" >> $GITHUB_ENV
 
@@ -53,7 +61,7 @@ jobs:
 
     - name: Deploy para o OnRender
       env:
-        RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}  # Chave API do OnRender
+        RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
       run: |
         curl -X POST \
           -H "Authorization: Bearer $RENDER_API_KEY" \
