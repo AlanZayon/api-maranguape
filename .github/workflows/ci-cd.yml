@@ -30,7 +30,7 @@ jobs:
     - name: Check environment variables
       run: echo "MONGO_CONNECTING_FUNCIONARIOS is set"
       env:
-        MONGO_CONNECTING_FUNCIONARIOS: ${{ secrets.MONGO_CONNECTING_FUNCIONARIOS }}
+        MONGO_CONNECTING_FUNCIONARIOS: ${{ secrets.MONGO_CONNECTING_FUNCIONARIOS }} >> $GITHUB_ENV
     
 
     - name: Definir variáveis de ambiente
