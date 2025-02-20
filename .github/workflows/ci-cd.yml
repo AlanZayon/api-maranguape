@@ -15,6 +15,14 @@ jobs:
         ports:
           - 6379:6379
 
+      mongo:
+        image: mongo:latest
+        ports:
+          - 27017:27017
+        env:
+          MONGO_INITDB_ROOT_USERNAME: ${{ secrets.MONGO_DB_USERNAME }}
+          MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.MONGO_DB_PASSWORD }}
+
     steps:
     - name: Checar código
       uses: actions/checkout@v2
@@ -27,22 +35,19 @@ jobs:
     - name: Instalar dependências
       run: npm install
 
-    - name: Check environment variables
+    - name: Esperar MongoDB estar pronto
       run: |
-        if [[ -z "$MONGO_CONNECTING_FUNCIONARIOS" || -z "$MONGO_CONNECTING_USUARIOS" ]]; then
-          echo " One or both environment variables are not set"
-          exit 1
-        else
-          echo " MONGO_CONNECTING_FUNCIONARIOS and MONGO_CONNECTING_USUARIOS are set"
-        fi
+        until nc -z localhost 27017; do
+          echo "Aguardando MongoDB iniciar..."
+          sleep 2
+        done
       shell: bash
-      env:
-        MONGO_CONNECTING_FUNCIONARIOS: ${{ secrets.MONGO_CONNECTING_FUNCIONARIOS }}
-        MONGO_CONNECTING_USUARIOS: ${{ secrets.MONGO_CONNECTING_USUARIOS }}
-    
-        
+
     - name: Definir variáveis de ambiente
-      run: echo "REDIS_URL=redis://127.0.0.1:6379" >> $GITHUB_ENV
+      run: |
+        echo "MONGO_CONNECTING_FUNCIONARIOS=mongodb://${{ secrets.MONGO_DB_USERNAME }}:${{ secrets.MONGO_DB_PASSWORD }}@localhost:27017/Funcionarios" >> $GITHUB_ENV
+        echo "MONGO_CONNECTING_USUARIOS=mongodb://${{ secrets.MONGO_DB_USERNAME }}:${{ secrets.MONGO_DB_PASSWORD }}@localhost:27017/usuarios" >> $GITHUB_ENV
+        echo "REDIS_URL=redis://127.0.0.1:6379" >> $GITHUB_ENV
 
     - name: Rodar os testes
       run: npm test
@@ -57,7 +62,6 @@ jobs:
     steps:
     - name: Checar código
       uses: actions/checkout@v2
-
 
     - name: Deploy para o OnRender
       env:
