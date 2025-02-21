@@ -15,6 +15,20 @@ jobs:
         ports:
           - 6379:6379
 
+      mongo:
+        image: mongo:latest
+        env:
+          MONGO_INITDB_ROOT_USERNAME: admin
+          MONGO_INITDB_ROOT_PASSWORD: admin
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "echo 'db.runCommand({ ping: 1 })' | mongosh --quiet"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+
     steps:
     - name: Checar código
       uses: actions/checkout@v2
@@ -26,15 +40,29 @@ jobs:
 
     - name: Instalar dependências
       run: npm install
-
-    - name: Check environment variables
-      run: echo "MONGO_CONNECTING_FUNCIONARIOS is set"
-      env:
-        MONGO_CONNECTING_FUNCIONARIOS: ${{ secrets.MONGO_CONNECTING_FUNCIONARIOS }}
     
+    - name: Install mongosh
+      run: |
+          sudo apt-get install gnupg
+          wget -qO- https://www.mongodb.org/static/pgp/server-7.0.asc | sudo tee /etc/apt/trusted.gpg.d/server-7.0.asc
+          echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+          sudo apt-get update
+          sudo apt-get install -y mongodb-mongosh
+          mongosh --version
+
+    - name: Esperar MongoDB estar pronto
+      run: |
+        until nc -z localhost 27017; do
+          echo "Aguardando MongoDB iniciar..."
+          sleep 2
+        done
+      shell: bash
 
     - name: Definir variáveis de ambiente
-      run: echo "REDIS_URL=redis://127.0.0.1:6379" >> $GITHUB_ENV
+      run: |
+        echo "MONGO_CONNECTING_FUNCIONARIOS=mongodb://admin:admin@localhost:27017/Funcionarios?authSource=admin" >> $GITHUB_ENV
+        echo "MONGO_CONNECTING_USUARIOS=mongodb://admin:admin@localhost:27017/usuarios?authSource=admin" >> $GITHUB_ENV
+        echo "REDIS_URL=redis://127.0.0.1:6379" >> $GITHUB_ENV
 
     - name: Rodar os testes
       run: npm test
@@ -50,10 +78,9 @@ jobs:
     - name: Checar código
       uses: actions/checkout@v2
 
-
     - name: Deploy para o OnRender
       env:
-        RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}  # Chave API do OnRender
+        RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
       run: |
         curl -X POST \
           -H "Authorization: Bearer $RENDER_API_KEY" \
