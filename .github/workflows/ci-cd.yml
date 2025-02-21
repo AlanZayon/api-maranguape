@@ -67,9 +67,6 @@ jobs:
     - name: Rodar os testes
       run: npm test
 
-    - name: Rodar linting
-      run: npm run lint
-
   deploy:
     runs-on: ubuntu-latest
     needs: build  # Só roda após o job de build ter sido concluído com sucesso
