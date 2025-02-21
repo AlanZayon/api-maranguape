@@ -17,11 +17,17 @@ jobs:
 
       mongo:
         image: mongo:latest
+        env:
+          MONGO_INITDB_ROOT_USERNAME: admin
+          MONGO_INITDB_ROOT_PASSWORD: admin
         ports:
           - 27017:27017
-        env:
-          MONGO_INITDB_ROOT_USERNAME: ${{ secrets.MONGO_DB_USERNAME }}
-          MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.MONGO_DB_PASSWORD }}
+        options: >-
+          --health-cmd "echo 'db.runCommand({ ping: 1 })' | mongosh --quiet"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
 
     steps:
     - name: Checar código
@@ -34,6 +40,11 @@ jobs:
 
     - name: Instalar dependências
       run: npm install
+    
+    - name: Instalar cliente MongoDB
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y mongodb-mongosh
 
     - name: Esperar MongoDB estar pronto
       run: |
@@ -45,8 +56,8 @@ jobs:
 
     - name: Definir variáveis de ambiente
       run: |
-        echo "MONGO_CONNECTING_FUNCIONARIOS=mongodb://${{ secrets.MONGO_DB_USERNAME }}:${{ secrets.MONGO_DB_PASSWORD }}@localhost:27017/Funcionarios" >> $GITHUB_ENV
-        echo "MONGO_CONNECTING_USUARIOS=mongodb://${{ secrets.MONGO_DB_USERNAME }}:${{ secrets.MONGO_DB_PASSWORD }}@localhost:27017/usuarios" >> $GITHUB_ENV
+        echo "MONGO_CONNECTING_FUNCIONARIOS=mongodb://admin:admin@localhost:27017/Funcionarios?authSource=admin" >> $GITHUB_ENV
+        echo "MONGO_CONNECTING_USUARIOS=mongodb://admin:admin@localhost:27017/usuarios?authSource=admin" >> $GITHUB_ENV
         echo "REDIS_URL=redis://127.0.0.1:6379" >> $GITHUB_ENV
 
     - name: Rodar os testes
