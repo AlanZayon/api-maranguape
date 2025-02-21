@@ -1,23 +1,22 @@
 const request = require('supertest');
-const app = require('../app');  // Substitua pelo seu app Express
-const Setor = require('../models/setoresSchema');  // Importa o modelo de Setor
-const db = require('../config/Mongoose/funcionariosConnection');
+const app = require('../app');
+const Setor = require('../models/setoresSchema');  
 const mongoose = require('mongoose');
+const redisClient = require('../config/redisClient'); 
+
 
 let setorId;
 let subSetorId;
-let coordenadoriaId;
 
 describe('Testes de Setores', () => {
 
   // Criação do setor no beforeAll, para garantir que o ID será utilizado nos testes seguintes
   beforeAll(async () => {
 
-
     const novoSetor = {
       nome: 'Setor Teste',
       tipo: 'Setor',
-      parent: null, // Primeiro setor sem parent
+      parent: null, 
     };
 
     const response = await request(app)
@@ -25,13 +24,13 @@ describe('Testes de Setores', () => {
       .send(novoSetor)
       .set('Accept', 'application/json');
 
-    setorId = response.body._id; // Armazena o ID do primeiro setor
+    setorId = response.body._id; 
 
     // Criar um novo setor utilizando o ID do primeiro setor como parent
     const subSetor = {
       nome: 'SubSetor Teste',
       tipo: 'Subsetor',
-      parent: setorId, // Usa o ID do primeiro setor como parent
+      parent: setorId, 
     };
 
     const responseSubSetor = await request(app)
@@ -39,13 +38,13 @@ describe('Testes de Setores', () => {
       .send(subSetor)
       .set('Accept', 'application/json');
 
-    subSetorId = responseSubSetor.body._id; // Armazena o ID do subsetor criado
+    subSetorId = responseSubSetor.body._id;
 
     // Criar um novo setor utilizando o ID do primeiro setor como parent
     const coordenadoria = {
       nome: 'Coordenadoria Teste',
       tipo: 'Coordenadoria',
-      parent: subSetorId, // Usa o ID do primeiro setor como parent
+      parent: subSetorId, 
     };
 
     const responseCoordenadoria = await request(app)
@@ -53,7 +52,6 @@ describe('Testes de Setores', () => {
       .send(coordenadoria)
       .set('Accept', 'application/json');
 
-    coordenadoriaId = responseCoordenadoria.body._id; // Armazena o ID do subsetor criado
   });
 
   // Teste para verificar setor
@@ -126,5 +124,8 @@ describe('Testes de Setores', () => {
       await Setor.findByIdAndDelete(subSetorId);
     }
     await mongoose.connection.close();
+    if (redisClient) {
+      await redisClient.disconnect(); 
+    }
     });
 });
