@@ -3,7 +3,7 @@ name: CI/CD Pipeline
 on:
   push:
     branches:
-      - main  # Aciona o pipeline para commits na branch principal
+      - main # Aciona o pipeline para commits na branch principal
 
 jobs:
   build:
@@ -28,21 +28,20 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-
     steps:
-    - name: Checar código
-      uses: actions/checkout@v2
+      - name: Checar código
+        uses: actions/checkout@v2
 
-    - name: Configurar Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18'
+      - name: Configurar Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
 
-    - name: Instalar dependências
-      run: npm install
-    
-    - name: Install mongosh
-      run: |
+      - name: Instalar dependências
+        run: npm install
+
+      - name: Install mongosh
+        run: |
           sudo apt-get install gnupg
           wget -qO- https://www.mongodb.org/static/pgp/server-7.0.asc | sudo tee /etc/apt/trusted.gpg.d/server-7.0.asc
           echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
@@ -50,36 +49,39 @@ jobs:
           sudo apt-get install -y mongodb-mongosh
           mongosh --version
 
-    - name: Esperar MongoDB estar pronto
-      run: |
-        until nc -z localhost 27017; do
-          echo "Aguardando MongoDB iniciar..."
-          sleep 2
-        done
-      shell: bash
+      - name: Esperar MongoDB estar pronto
+        run: |
+          until nc -z localhost 27017; do
+            echo "Aguardando MongoDB iniciar..."
+            sleep 2
+          done
+        shell: bash
 
-    - name: Definir variáveis de ambiente
-      run: |
-        echo "MONGO_CONNECTING_FUNCIONARIOS=mongodb://admin:admin@localhost:27017/Funcionarios?authSource=admin" >> $GITHUB_ENV
-        echo "MONGO_CONNECTING_USUARIOS=mongodb://admin:admin@localhost:27017/usuarios?authSource=admin" >> $GITHUB_ENV
-        echo "REDIS_URL=redis://127.0.0.1:6379" >> $GITHUB_ENV
+      - name: Definir variáveis de ambiente
+        run: |
+          echo "MONGO_CONNECTING_FUNCIONARIOS=mongodb://admin:admin@localhost:27017/Funcionarios?authSource=admin" >> $GITHUB_ENV
+          echo "MONGO_CONNECTING_USUARIOS=mongodb://admin:admin@localhost:27017/usuarios?authSource=admin" >> $GITHUB_ENV
+          echo "REDIS_URL=redis://127.0.0.1:6379" >> $GITHUB_ENV
 
-    - name: Rodar os testes
-      run: npm test
+      - name: Rodar os testes
+        run: npm test
+
+      - name: Rodar linting
+        run: npm run lint
 
   deploy:
     runs-on: ubuntu-latest
-    needs: build  # Só roda após o job de build ter sido concluído com sucesso
+    needs: build # Só roda após o job de build ter sido concluído com sucesso
 
     steps:
-    - name: Checar código
-      uses: actions/checkout@v2
+      - name: Checar código
+        uses: actions/checkout@v2
 
-    - name: Deploy para o OnRender
-      env:
-        RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-      run: |
-        curl -X POST \
-          -H "Authorization: Bearer $RENDER_API_KEY" \
-          -d '{"branch": "main"}' \
-          https://api.onrender.com/v1/services/srv-cu73jaq3esus73ffmn4g/deploy
+      - name: Deploy para o OnRender
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -d '{"branch": "main"}' \
+            https://api.onrender.com/v1/services/srv-cu73jaq3esus73ffmn4g/deploy
