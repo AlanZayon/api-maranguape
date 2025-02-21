@@ -69,9 +69,8 @@ jobs:
       - name: Rodar linting
         run: npm run lint
 
-    - name: Rodar linting
-      run: npm run lint
-
+      - name: Rodar linting
+        run: npm run lint
 
   deploy:
     runs-on: ubuntu-latest
