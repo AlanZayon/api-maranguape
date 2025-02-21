@@ -3,36 +3,33 @@ const helmet = require('helmet');
 const compression = require('compression');
 const cors = require('cors');
 const morgan = require('morgan');
-const bcrypt = require('bcryptjs')
-const Cookies = require('cookies'); // Importar a biblioteca cookies
+const bcrypt = require('bcryptjs');
+const Cookies = require('cookies');
 const rateLimit = require('express-rate-limit');
-const dbUsuarios = require('./config/Mongoose/usuariosConnection');
-const dbFuncionarios = require('./config/Mongoose/funcionariosConnection');
-const redis = require('./config/redisClient'); // Importa o cliente Redis
-const usuarioRoute = require("./routes/usuariosRoute")
+const redis = require('./config/redisClient');
+const usuarioRoute = require('./routes/usuariosRoute');
 const setoresRoutes = require('./routes/setoresRoutes');
 const funcionariosRoutes = require('./routes/funcionariosRoutes');
 const referenciasRoutes = require('./routes/referenciasRoutes');
 
-
 const app = express();
 
 const allowedOrigins = [
- 'https://heroic-alfajores-da3394.netlify.app',
+  'https://heroic-alfajores-da3394.netlify.app',
   'https://interface-sistema-maranguape.vercel.app',
   'http://localhost:5174',
-  'http://localhost:5173'
+  'http://localhost:5173',
 ];
 
 const corsOptions = {
-  origin: function(origin, callback) {
+  origin: function (origin, callback) {
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true, // Caso esteja usando cookies
+  credentials: true,
 };
 
 // Middlewares globais
@@ -67,21 +64,17 @@ app.use(limiter);
 
 // Rotas (adicionaremos rotas mais tarde)
 app.get('/', async (req, res) => {
-
   const senha = 'Pref@2024';
   const saltRounds = 10;
   const hash = await bcrypt.hash(senha, saltRounds);
   console.log('Hash da senha:', hash);
 
-    res.send('Hello World!, Pref@2024');
+  res.send('Hello World!, Pref@2024');
 });
 
 app.use('/api/setores', setoresRoutes);
 app.use('/api/funcionarios', funcionariosRoutes);
 app.use('/api/usuarios', usuarioRoute);
 app.use('/api/referencias', referenciasRoutes);
-
-
-
 
 module.exports = app;
