@@ -124,12 +124,13 @@
 <a name='L59'></a><a href='#L59'>59</a>
 <a name='L60'></a><a href='#L60'>60</a>
 <a name='L61'></a><a href='#L61'>61</a>
-<a name='L62'></a><a href='#L62'>62</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -154,26 +155,27 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -184,17 +186,17 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const express = require("express");
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const express = require('express');
 const router = express.Router();
-const Reference = require("../models/referenciasSchema");
-const redis = require("../config/redisClient"); // Importa o cliente Redis exportado no app.js
+const Reference = require('../models/referenciasSchema');
+const redis = require('../config/redisClient');
 &nbsp;
-router.post("/register-reference", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
+router.post('/register-reference', <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
   const { name } = <span class="cstat-no" title="statement not covered" >req.body;</span>
 &nbsp;
 <span class="cstat-no" title="statement not covered" >  if (!name) {</span>
-<span class="cstat-no" title="statement not covered" >    return res.status(400).json({ message: "Nome é obrigatório!" });</span>
+<span class="cstat-no" title="statement not covered" >    return res.status(400).json({ message: 'Nome é obrigatório!' });</span>
   }
 &nbsp;
 <span class="cstat-no" title="statement not covered" >  try {</span>
@@ -203,31 +205,32 @@ router.post("/register-reference", <span class="fstat-no" title="function not co
 <span class="cstat-no" title="statement not covered" >    await newReference.save();</span>
 &nbsp;
     // Adicionar apenas a nova referência ao cache existente
-    const currentCache = <span class="cstat-no" title="statement not covered" >JSON.parse(await redis.get("referencias-dados")) || [];</span>
+    const currentCache = <span class="cstat-no" title="statement not covered" >JSON.parse(await redis.get('referencias-dados')) || [];</span>
 <span class="cstat-no" title="statement not covered" >    currentCache.push(newReference);</span>
-<span class="cstat-no" title="statement not covered" >    await redis.setex("referencias-dados", 3600, JSON.stringify(currentCache));</span>
+<span class="cstat-no" title="statement not covered" >    await redis.setex('referencias-dados', 3600, JSON.stringify(currentCache));</span>
 &nbsp;
-<span class="cstat-no" title="statement not covered" >    res.status(201).json({ message: "Referência registrada com sucesso!" });</span>
+<span class="cstat-no" title="statement not covered" >    res.status(201).json({ message: 'Referência registrada com sucesso!' });</span>
   } catch (error) {
-<span class="cstat-no" title="statement not covered" >    console.error("Erro ao registrar referência:", error.message);</span>
+<span class="cstat-no" title="statement not covered" >    console.error('Erro ao registrar referência:', error.message);</span>
 &nbsp;
 <span class="cstat-no" title="statement not covered" >    if (error.code === 11000) {</span>
-<span class="cstat-no" title="statement not covered" >      return res.status(400).json({ message: "Essa referência já foi registrada!" });</span>
+<span class="cstat-no" title="statement not covered" >      return res</span>
+        .status(400)
+        .json({ message: 'Essa referência já foi registrada!' });
     }
 &nbsp;
-<span class="cstat-no" title="statement not covered" >    res.status(500).json({ message: "Erro ao registrar referência!" });</span>
+<span class="cstat-no" title="statement not covered" >    res.status(500).json({ message: 'Erro ao registrar referência!' });</span>
   }
 });
 &nbsp;
-&nbsp;
 // Rota para obter referências
-router.get("/referencias-dados", <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
+router.get('/referencias-dados', <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >  try {</span>
     // Verifica se os dados estão no cache Redis
-    const cacheData = <span class="cstat-no" title="statement not covered" >await redis.get("referencias-dados");</span>
+    const cacheData = <span class="cstat-no" title="statement not covered" >await redis.get('referencias-dados');</span>
 &nbsp;
 <span class="cstat-no" title="statement not covered" >    if (cacheData) {</span>
-<span class="cstat-no" title="statement not covered" >      console.log("Cache encontrado, enviando dados do Redis...");</span>
+<span class="cstat-no" title="statement not covered" >      console.log('Cache encontrado, enviando dados do Redis...');</span>
 <span class="cstat-no" title="statement not covered" >      return res.json({ referencias: JSON.parse(cacheData) });</span>
     }
 &nbsp;
@@ -235,13 +238,13 @@ router.get("/referencias-dados", <span class="fstat-no" title="function not cove
     const referencias = <span class="cstat-no" title="statement not covered" >await Reference.find();</span>
 &nbsp;
     // Armazena os dados no cache Redis (tempo de expiração: 1 hora)
-<span class="cstat-no" title="statement not covered" >    await redis.setex("referencias-dados", 3600, JSON.stringify(referencias));</span>
+<span class="cstat-no" title="statement not covered" >    await redis.setex('referencias-dados', 3600, JSON.stringify(referencias));</span>
 &nbsp;
-<span class="cstat-no" title="statement not covered" >    console.log("Dados do banco enviados e armazenados no cache.");</span>
+<span class="cstat-no" title="statement not covered" >    console.log('Dados do banco enviados e armazenados no cache.');</span>
 <span class="cstat-no" title="statement not covered" >    res.json({ referencias });</span>
   } catch (error) {
-<span class="cstat-no" title="statement not covered" >    console.error("Erro ao obter referências:", error.message);</span>
-<span class="cstat-no" title="statement not covered" >    res.status(500).json({ message: "Erro ao obter referências!" });</span>
+<span class="cstat-no" title="statement not covered" >    console.error('Erro ao obter referências:', error.message);</span>
+<span class="cstat-no" title="statement not covered" >    res.status(500).json({ message: 'Erro ao obter referências!' });</span>
   }
 });
 &nbsp;
@@ -253,7 +256,7 @@ module.exports = router;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-02-21T16:19:59.831Z
+                at 2025-03-03T19:48:24.684Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

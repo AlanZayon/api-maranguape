@@ -9,7 +9,7 @@ const PDFDocument = require('pdfkit');
 const s3Client = require('../config/aws');
 const { PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
-const validateFuncionario = require('../validates/validateFuncionario');
+const validateFuncionario = require('../validations/validateFuncionario');
 const upload = require('../config/multerConfig');
 const redisClient = require('../config/redisClient');
 

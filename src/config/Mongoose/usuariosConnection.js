@@ -1,13 +1,14 @@
-const dotenv = require('dotenv');
-const mongooseUsuarios = require('mongoose');
-dotenv.config();
+const mongoose = require('mongoose');
 
-const db = mongooseUsuarios.createConnection(
-  process.env.MONGO_CONNECTING_USUARIOS
-);
+const connectUserDB = async (uri) => {
+  await mongoose.createConnection(uri);
+};
 
-db.on('error', console.error.bind(console, 'Erro na conexão com MongoDB:'));
-db.once('open', () => {
-  console.log('Conectado ao MongoDB');
-});
-module.exports = db;
+const disconnectUserDB = async () => {
+  await mongoose.connections[0].close();
+};
+
+module.exports = {
+  connectUserDB,
+  disconnectUserDB,
+};

@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>5/5</span>
+                <span class='fraction'>4/4</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>5/5</span>
+                <span class='fraction'>4/4</span>
             </div>
         
             
@@ -93,21 +93,18 @@
 <a name='L28'></a><a href='#L28'>28</a>
 <a name='L29'></a><a href='#L29'>29</a>
 <a name='L30'></a><a href='#L30'>30</a>
-<a name='L31'></a><a href='#L31'>31</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -120,11 +117,29 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const mongoose = require('mongoose');
-const dbFuncionarios = require("../config/Mongoose/funcionariosConnection")
 &nbsp;
 // Esquema de funcionário
 const funcionarioSchema = new mongoose.Schema({
@@ -134,23 +149,32 @@ const funcionarioSchema = new mongoose.Schema({
   funcao: { type: String, required: true },
   natureza: { type: String, required: true },
   referencia: { type: String, required: true },
-  redesSociais: [{
-    link: { type: String},
-    nome: { type: String},
-    _id: { type: mongoose.Schema.Types.ObjectId, auto: false } 
-  }],
+  redesSociais: [
+    {
+      link: { type: String },
+      nome: { type: String },
+      _id: { type: mongoose.Schema.Types.ObjectId, auto: false },
+    },
+  ],
   salarioBruto: { type: Number, required: true },
   salarioLiquido: { type: Number, required: true },
   endereco: { type: String, required: true },
   bairro: { type: String, required: true },
   telefone: { type: String, required: true },
   observacoes: [{ type: String }],
-  arquivo: { type: String, default: null  },
-  coordenadoria: { type: mongoose.Schema.Types.ObjectId, ref: 'Coordenadoria', required: true }, // Referência à coordenadoria
-  createdAt: { type: Date, default: Date.now }
+  arquivo: { type: String, default: null },
+  coordenadoria: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Coordenadoria',
+    required: true,
+  }, // Referência à coordenadoria
+  createdAt: { type: Date, default: Date.now },
 });
 &nbsp;
-const Funcionario = dbFuncionarios.model('Funcionario', funcionarioSchema);
+const Funcionario = mongoose.connections[0].model(
+  'Funcionario',
+  funcionarioSchema
+);
 &nbsp;
 module.exports = Funcionario;
 &nbsp;</pre></td></tr></table></pre>
@@ -160,7 +184,7 @@ module.exports = Funcionario;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-02-21T16:19:59.831Z
+                at 2025-03-03T19:48:24.684Z
             </div>
         <script src="../../prettify.js"></script>
         <script>
