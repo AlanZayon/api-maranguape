@@ -18,4 +18,4 @@ COPY . .
 EXPOSE 3000
 
 # Comando para iniciar o aplicativo
-CMD ["npm", "run", "prod"]
+CMD ["npm", "run", "dev"]

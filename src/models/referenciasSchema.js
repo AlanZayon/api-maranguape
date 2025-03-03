@@ -1,15 +1,12 @@
-const mongoose = require("mongoose");
-const dbFuncionarios = require("../config/Mongoose/funcionariosConnection")
+const mongoose = require('mongoose');
 
-const referenceSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: true,
-      unique: true,
-      trim: true,
-    },
+const referenceSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
   },
-);
+});
 
-module.exports = dbFuncionarios.model("Reference", referenceSchema);
+module.exports = mongoose.connections[0].model('Reference', referenceSchema);
