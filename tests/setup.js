@@ -9,7 +9,6 @@ const {
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const redisClient = require('../src/config/redisClient');
 const { beforeAll, afterAll } = require('@jest/globals');
-require('dotenv').config();
 
 let mongoServerFunc;
 let mongoServerUser;
@@ -35,6 +34,5 @@ afterAll(async () => {
   // Fechar a conexão com o MongoDB de Usuários
   await disconnectUserDB();
 
-  // Fechar a conexão com o Redis
-  await redisClient.disconnect();
+  await redisClient.quit();
 });
