@@ -1,5 +1,4 @@
 const validate = (schema) => (req, res, next) => {
-  console.log('Validando requisição:', req.body);
   if (
     req.body &&
     req.body.redesSociais &&

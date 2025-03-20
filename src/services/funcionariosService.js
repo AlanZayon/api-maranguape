@@ -11,8 +11,6 @@ class FuncionarioService {
     return await CacheService.getOrSetCache(`todos:funcionarios`, async () => {
       const funcionarios = await FuncionarioRepository.findAll();
 
-      console.log(funcionarios);
-
       return await Promise.all(
         funcionarios.map(async (funcionario) => ({
           ...funcionario.toObject(),
@@ -36,7 +34,6 @@ class FuncionarioService {
 
         const funcionarios =
           await FuncionarioRepository.findByCoordenadoria(objectId);
-        console.log(funcionarios);
 
         return await Promise.all(
           funcionarios.map(async (funcionario) => ({
@@ -63,8 +60,6 @@ class FuncionarioService {
 
     if (req.body.natureza === 'comissionado') {
       const cargo = await CargoComissionado.buscarPorNome(req.body.funcao);
-
-      console.log('cargo', cargo);
 
       if (cargo.limite === 0) {
         throw new Error('Não é possível criar funcionário: limite atingido.');
@@ -155,7 +150,6 @@ class FuncionarioService {
               }
 
               if (func.natureza === 'comissionado' && func.funcao) {
-                console.log('natureza:', func.natureza);
                 cargosComissionados.add(func.funcao);
               }
             });
@@ -167,11 +161,7 @@ class FuncionarioService {
 
       await Promise.all(batchPromises);
 
-      console.log('Cargos comissionados:', cargosComissionados);
-      console.log('Funcionários comissionados:', funcionariosComissionados);
-
       for (const nomeFuncao of cargosComissionados) {
-        console.log('Nome da função:', nomeFuncao);
         const cargo = await CargoComissionado.buscarPorNome(nomeFuncao);
         if (cargo) {
           await CargoComissionado.updateLimit(

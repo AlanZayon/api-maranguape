@@ -10,7 +10,6 @@ class FuncionarioRepository {
   }
 
   static findByCoordenadoria(coordenadoriaIds) {
-    console.log('Buscando funcionários por coordenadoria:', coordenadoriaIds);
     return Funcionario.find({
       coordenadoria: { $in: coordenadoriaIds },
     }).lean();

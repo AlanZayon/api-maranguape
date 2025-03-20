@@ -29,7 +29,6 @@ class FuncionarioController {
   static async createFuncionario(req, res) {
     try {
       const funcionario = await FuncionarioService.createFuncionario(req);
-      console.log('Funcionário criado:', funcionario);
       res.status(201).json(funcionario);
     } catch (error) {
       console.error(error);
