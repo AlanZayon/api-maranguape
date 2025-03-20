@@ -2,12 +2,9 @@ const redisClient = require('../config/redisClient');
 
 class CacheService {
   static async getOrSetCache(key, fetchFunction) {
-    console.log('Checking cache for', key);
     const cachedData = await redisClient.get(key);
-    console.log('Cache found for', cachedData);
     if (cachedData) return JSON.parse(cachedData);
     const freshData = await fetchFunction();
-    console.log('Setting cache for', key);
     await redisClient.setex(key, 3600, JSON.stringify(freshData));
     return freshData;
   }
