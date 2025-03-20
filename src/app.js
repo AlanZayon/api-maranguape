@@ -7,8 +7,6 @@ const morgan = require('morgan');
 const bcrypt = require('bcryptjs');
 const Cookies = require('cookies');
 const rateLimit = require('express-rate-limit');
-const { connectFuncDB } = require('./config/Mongoose/funcionariosConnection');
-const { connectUserDB } = require('./config/Mongoose/usuariosConnection');
 const redis = require('./config/redisClient');
 const usuarioRoute = require('./routes/usuariosRoute');
 const setoresRoutes = require('./routes/setoresRoutes');
@@ -16,22 +14,6 @@ const funcionariosRoutes = require('./routes/funcionariosRoutes');
 const referenciasRoutes = require('./routes/referenciasRoutes');
 
 dotenv.config();
-
-connectFuncDB(process.env.MONGO_CONNECTING_FUNCIONARIOS)
-  .then(() => {
-    console.log('Conectado ao banco de dados!');
-  })
-  .catch((err) => {
-    console.error('Erro ao conectar ao banco de dados:', err);
-  });
-
-connectUserDB(process.env.MONGO_CONNECTING_USUARIOS)
-  .then(() => {
-    console.log('Conectado ao banco de dados!');
-  })
-  .catch((err) => {
-    console.error('Erro ao conectar ao banco de dados:', err);
-  });
 
 const app = express();
 

@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const dbUsuarios = require('../config/Mongoose/usuariosConnection');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
@@ -10,9 +11,10 @@ const userSchema = new mongoose.Schema({
 
 // Método para comparar senhas
 userSchema.methods.comparePassword = async function (inputPassword) {
+  console.log('input', inputPassword);
   return await bcrypt.compare(inputPassword, this.passwordHash);
 };
 
-const User = mongoose.connections[0].model('User', userSchema);
+const User = dbUsuarios.model('User', userSchema);
 
 module.exports = User;
