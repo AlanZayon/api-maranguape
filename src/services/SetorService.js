@@ -1,5 +1,6 @@
 const SetorRepository = require('../repositories/SetorRepository');
 const CacheService = require('../services/CacheService');
+const organizarSetores = require('../utils/organizarSetores');
 
 class SetorService {
   static async createSetor(data) {
@@ -7,6 +8,14 @@ class SetorService {
     const setor = await SetorRepository.create({ nome, tipo, parent });
     await CacheService.clearCacheForSetor(parent, setor._id);
     return setor;
+  }
+
+  static async getSetoresOrganizados() {
+    return await CacheService.getOrSetCache('setoresOrganizados', async () => {
+      const setores = await SetorRepository.getAllSetores();
+      const setoresOrganizados = organizarSetores(setores);
+      return setoresOrganizados;
+    });
   }
 
   static async getMainSetores() {

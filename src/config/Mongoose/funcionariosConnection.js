@@ -1,14 +1,13 @@
-const mongoose = require('mongoose');
+const dotenv = require('dotenv');
+const mongooseFuncionarios = require('mongoose');
+dotenv.config();
 
-const connectFuncDB = async (uri) => {
-  await mongoose.createConnection(uri);
-};
+const db = mongooseFuncionarios.createConnection(
+  process.env.MONGO_CONNECTING_FUNCIONARIOS
+);
 
-const disconnectFuncDB = async () => {
-  await mongoose.connections[0].close();
-};
-
-module.exports = {
-  connectFuncDB,
-  disconnectFuncDB,
-};
+db.on('error', console.error.bind(console, 'Erro na conexão com MongoDB:'));
+db.once('open', () => {
+  console.log('Conectado ao MongoDB');
+});
+module.exports = db;

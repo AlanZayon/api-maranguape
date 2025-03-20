@@ -2,6 +2,10 @@ const mongoose = require('mongoose');
 const Setor = require('../models/setoresSchema');
 
 class SetorRepository {
+  static async getAllSetores() {
+    return await Setor.find();
+  }
+
   static async create(data) {
     return await new Setor(data).save();
   }
@@ -12,6 +16,10 @@ class SetorRepository {
 
   static async findSetorData(setorId) {
     return await Setor.find({ parent: setorId });
+  }
+
+  static async findSetorByCoordenadoria(setorIds) {
+    return await Setor.find({ setorId: { $in: setorIds } });
   }
 
   static async updateNome(id, nome) {

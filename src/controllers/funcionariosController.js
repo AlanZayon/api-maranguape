@@ -1,0 +1,112 @@
+const FuncionarioService = require('../services/funcionariosService');
+const CargoComissionadoService = require('../services/cargoComissionadoService');
+const Logger = require('../utils/Logger');
+
+class FuncionarioController {
+  static async buscarFuncionarios(req, res) {
+    try {
+      const funcionarios = await FuncionarioService.buscarFuncionarios();
+
+      res.json(funcionarios);
+    } catch (err) {
+      console.error('Erro ao buscar funcionários:', err);
+      res.status(500).send('Erro ao buscar funcionários');
+    }
+  }
+  static async buscarFuncionariosPorCoordenadoria(req, res) {
+    const { coordId } = req.params;
+    try {
+      const funcionarios =
+        await FuncionarioService.buscarFuncionariosPorCoordenadoria(coordId);
+
+      res.json(funcionarios);
+    } catch (err) {
+      console.error('Erro ao buscar funcionários:', err);
+      res.status(500).send('Erro ao buscar funcionários');
+    }
+  }
+
+  static async createFuncionario(req, res) {
+    try {
+      const funcionario = await FuncionarioService.createFuncionario(req);
+      console.log('Funcionário criado:', funcionario);
+      res.status(201).json(funcionario);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Erro ao criar funcionário' });
+    }
+  }
+
+  static async updateFuncionario(req, res) {
+    try {
+      const response = await FuncionarioService.execute(
+        req.params,
+        req.body,
+        req.files
+      );
+      res.status(response.status).json(response.data);
+    } catch (error) {
+      Logger.error('Erro ao atualizar funcionário', error);
+      res.status(500).json({ error: 'Erro ao atualizar funcionário' });
+    }
+  }
+
+  static async deleteUsers(req, res) {
+    try {
+      const { userIds } = req.body;
+      if (!Array.isArray(userIds) || userIds.length === 0) {
+        return res.status(400).json({ error: 'Lista de usuários inválida.' });
+      }
+
+      const result = await FuncionarioService.deleteUsers(userIds);
+      res.status(200).json(result);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  static async updateCoordenadoria(req, res) {
+    try {
+      const result = await FuncionarioService.updateCoordinatoria(
+        req.body.userIds,
+        req.body.newCoordId
+      );
+      res.status(200).json(result);
+    } catch {
+      res.status(500).json({ error: 'Erro ao atualizar coordenadoria' });
+    }
+  }
+
+  static async updateObservacoes(req, res) {
+    const { userId } = req.params;
+    const { observacoes } = req.body;
+
+    try {
+      const user = await FuncionarioService.updateObservacoes(
+        userId,
+        observacoes
+      );
+
+      return res.status(200).json({
+        message: 'Observações atualizadas com sucesso.',
+        observacoes: user.observacoes,
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar observações:', error);
+      return res
+        .status(500)
+        .json({ error: error.message || 'Erro ao atualizar observações.' });
+    }
+  }
+
+  static async buscarCargos(req, res) {
+    try {
+      const cargos = await CargoComissionadoService.listarCargos();
+      res.status(200).json(cargos);
+    } catch {
+      res.status(500).json({ error: 'Erro ao buscar cargos comissionados' });
+    }
+  }
+}
+
+module.exports = FuncionarioController;

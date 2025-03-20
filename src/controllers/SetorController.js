@@ -11,6 +11,15 @@ class SetorController {
         .json({ error: 'Erro ao criar setor', message: error.message });
     }
   }
+  static async getSetoresOrganizados(req, res) {
+    try {
+      const setores = await SetorService.getSetoresOrganizados();
+      res.json({ setores });
+    } catch (error) {
+      console.error('Erro ao buscar setores organizados:', error);
+      res.status(500).json({ error: 'Erro ao buscar dados' });
+    }
+  }
 
   static async getMainSetores(req, res) {
     try {
