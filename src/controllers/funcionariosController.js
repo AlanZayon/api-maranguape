@@ -26,6 +26,18 @@ class FuncionarioController {
     }
   }
 
+  static async buscarFuncionariosPorSetor(req, res) {
+    try {
+      const { idSetor } = req.params;
+      const funcionarios =
+        await FuncionarioService.buscarFuncionariosPorSetor(idSetor);
+      return res.status(200).json(funcionarios);
+    } catch (error) {
+      console.error('Erro ao buscar funcionários por setor:', error);
+      return res.status(500).json({ error: 'Erro interno do servidor.' });
+    }
+  }
+
   static async createFuncionario(req, res) {
     try {
       const funcionario = await FuncionarioService.createFuncionario(req);

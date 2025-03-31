@@ -13,7 +13,7 @@ class FuncionarioService {
 
       return await Promise.all(
         funcionarios.map(async (funcionario) => ({
-          ...funcionario.toObject(),
+          ...funcionario,
           fotoUrl: funcionario.foto
             ? await awsUtils.gerarUrlPreAssinada(funcionario.foto)
             : null,
@@ -47,6 +47,27 @@ class FuncionarioService {
           }))
         );
       }
+    );
+  }
+
+  static async buscarFuncionariosPorSetor(idSetor) {
+    const objectId = mongoose.Types.ObjectId.isValid(idSetor)
+      ? new mongoose.Types.ObjectId(idSetor)
+      : idSetor;
+
+    const funcionarios =
+      await FuncionarioRepository.buscarFuncionariosPorSetor(objectId);
+
+    return await Promise.all(
+      funcionarios.map(async (funcionario) => ({
+        ...funcionario,
+        fotoUrl: funcionario.foto
+          ? await awsUtils.gerarUrlPreAssinada(funcionario.foto)
+          : null,
+        arquivoUrl: funcionario.arquivo
+          ? await awsUtils.gerarUrlPreAssinada(funcionario.arquivo)
+          : null,
+      }))
     );
   }
 

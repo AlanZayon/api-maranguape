@@ -4,18 +4,38 @@ const Reference = require('../models/referenciasSchema');
 const redis = require('../config/redisClient');
 
 router.post('/register-reference', async (req, res) => {
-  const { name } = req.body;
+  let { name, sobrenome, cargo, telefone } = req.body;
 
-  if (!name) {
-    return res.status(400).json({ message: 'Nome é obrigatório!' });
+  // Validação: garantir que todos os campos estejam preenchidos
+  if (!name || !sobrenome) {
+    console.log('Erro: Campos obrigatórios não preenchidos');
+    return res
+      .status(400)
+      .json({ message: 'Todos os campos são obrigatórios!' });
   }
 
+  // Converter todos os campos de texto para letras maiúsculas
+  name = name.toUpperCase();
+  sobrenome = sobrenome.toUpperCase();
+  cargo = cargo.toUpperCase();
+  telefone = telefone.trim(); // Remove espaços extras do telefone
+
   try {
-    // Cria uma nova referência
-    const newReference = new Reference({ name });
+    // Verifica se já existe um registro com o mesmo nome e sobrenome
+    const existingReference = await Reference.findOne({ name, sobrenome });
+
+    if (existingReference) {
+      console.log('Erro: Já existe uma referência com este nome e sobrenome');
+      return res.status(400).json({
+        message: 'Já existe uma referência com este nome e sobrenome!',
+      });
+    }
+
+    // Criando a nova referência
+    const newReference = new Reference({ name, sobrenome, cargo, telefone });
     await newReference.save();
 
-    // Adicionar apenas a nova referência ao cache existente
+    // Atualizando o cache do Redis
     const currentCache = JSON.parse(await redis.get('referencias-dados')) || [];
     currentCache.push(newReference);
     await redis.setex('referencias-dados', 3600, JSON.stringify(currentCache));
@@ -23,13 +43,6 @@ router.post('/register-reference', async (req, res) => {
     res.status(201).json({ message: 'Referência registrada com sucesso!' });
   } catch (error) {
     console.error('Erro ao registrar referência:', error.message);
-
-    if (error.code === 11000) {
-      return res
-        .status(400)
-        .json({ message: 'Essa referência já foi registrada!' });
-    }
-
     res.status(500).json({ message: 'Erro ao registrar referência!' });
   }
 });
@@ -56,6 +69,30 @@ router.get('/referencias-dados', async (req, res) => {
   } catch (error) {
     console.error('Erro ao obter referências:', error.message);
     res.status(500).json({ message: 'Erro ao obter referências!' });
+  }
+});
+
+// Rota para deletar uma referência
+router.delete('/delete-referencia/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Tenta encontrar e deletar a referência no banco de dados
+    const reference = await Reference.findByIdAndDelete(id);
+
+    if (!reference) {
+      return res.status(404).json({ message: 'Referência não encontrada!' });
+    }
+
+    // Atualizando o cache do Redis: removendo a referência deletada
+    let currentCache = JSON.parse(await redis.get('referencias-dados')) || [];
+    currentCache = currentCache.filter((ref) => ref._id.toString() !== id); // Filtra a referência deletada
+    await redis.setex('referencias-dados', 3600, JSON.stringify(currentCache));
+
+    res.status(200).json({ message: 'Referência deletada com sucesso!' });
+  } catch (error) {
+    console.error('Erro ao deletar referência:', error.message);
+    res.status(500).json({ message: 'Erro ao deletar referência!' });
   }
 });
 

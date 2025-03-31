@@ -20,6 +20,7 @@ class CacheService {
   static async clearCacheForFuncionarios(...keys) {
     for (const key of keys) {
       await redisClient.del(`coordenadoria:${key}:funcionarios`);
+      await redisClient.del(`setor:${key}:funcionarios`);
     }
     await redisClient.del('todos:funcionarios');
     await redisClient.del('todos:cargosComissionados');
