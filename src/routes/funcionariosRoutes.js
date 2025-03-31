@@ -12,6 +12,11 @@ router.get(
   '/buscarFuncionariosPorCoordenadoria/:coordId',
   FuncionarioController.buscarFuncionariosPorCoordenadoria
 );
+router.get(
+  '/setores/:idSetor/funcionarios',
+  FuncionarioController.buscarFuncionariosPorSetor
+);
+
 router.post(
   '/',
   upload,

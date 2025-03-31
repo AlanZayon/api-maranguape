@@ -1,4 +1,5 @@
 const Funcionario = require('../models/funcionariosSchema');
+const Setores = require('../models/setoresSchema');
 
 class FuncionarioRepository {
   static findAll() {
@@ -13,6 +14,39 @@ class FuncionarioRepository {
     return Funcionario.find({
       coordenadoria: { $in: coordenadoriaIds },
     }).lean();
+  }
+
+  static async buscarFuncionariosPorSetor(idSetor) {
+    return await Setores.aggregate([
+      {
+        $match: { _id: idSetor },
+      },
+      {
+        $graphLookup: {
+          from: 'setors',
+          startWith: '$_id',
+          connectFromField: '_id',
+          connectToField: 'parent',
+          as: 'hierarquia',
+        },
+      },
+      {
+        $lookup: {
+          from: 'funcionarios',
+          localField: 'hierarquia._id',
+          foreignField: 'coordenadoria',
+          as: 'funcionarios',
+        },
+      },
+      {
+        $unwind: '$funcionarios',
+      },
+      {
+        $replaceRoot: {
+          newRoot: '$funcionarios',
+        },
+      },
+    ]);
   }
 
   static create(data) {
