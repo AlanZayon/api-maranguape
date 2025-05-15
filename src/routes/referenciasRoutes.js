@@ -4,10 +4,10 @@ const Reference = require('../models/referenciasSchema');
 const redis = require('../config/redisClient');
 
 router.post('/register-reference', async (req, res) => {
-  let { name, sobrenome, cargo, telefone } = req.body;
+  let { name, cargo, telefone } = req.body;
 
   // Validação: garantir que todos os campos estejam preenchidos
-  if (!name || !sobrenome) {
+  if (!name) {
     console.log('Erro: Campos obrigatórios não preenchidos');
     return res
       .status(400)
@@ -16,13 +16,12 @@ router.post('/register-reference', async (req, res) => {
 
   // Converter todos os campos de texto para letras maiúsculas
   name = name.toUpperCase();
-  sobrenome = sobrenome.toUpperCase();
   cargo = cargo.toUpperCase();
   telefone = telefone.trim(); // Remove espaços extras do telefone
 
   try {
     // Verifica se já existe um registro com o mesmo nome e sobrenome
-    const existingReference = await Reference.findOne({ name, sobrenome });
+    const existingReference = await Reference.findOne({ name });
 
     if (existingReference) {
       console.log('Erro: Já existe uma referência com este nome e sobrenome');
@@ -32,7 +31,7 @@ router.post('/register-reference', async (req, res) => {
     }
 
     // Criando a nova referência
-    const newReference = new Reference({ name, sobrenome, cargo, telefone });
+    const newReference = new Reference({ name, cargo, telefone });
     await newReference.save();
 
     // Atualizando o cache do Redis

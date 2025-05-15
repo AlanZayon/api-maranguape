@@ -79,11 +79,12 @@ class FuncionarioController {
   static async updateCoordenadoria(req, res) {
     try {
       const result = await FuncionarioService.updateCoordinatoria(
-        req.body.userIds,
-        req.body.newCoordId
+        req.body.usuariosIds,
+        req.body.coordenadoriaId
       );
       res.status(200).json(result);
-    } catch {
+    } catch (error) {
+      Logger.error('Erro ao atualizar coordenadoria', error);
       res.status(500).json({ error: 'Erro ao atualizar coordenadoria' });
     }
   }

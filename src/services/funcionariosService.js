@@ -3,6 +3,7 @@ const FuncionarioRepository = require('../repositories/FuncionariosRepository');
 const CargoComissionado = require('../repositories/cargoComissionadoRepository');
 const CacheService = require('../services/CacheService');
 const awsUtils = require('../utils/awsUtils');
+const LimiteService = require('../utils/LimiteService');
 
 const BATCH_SIZE = 100;
 
@@ -117,6 +118,20 @@ class FuncionarioService {
     if (!funcionarioExistente)
       return { status: 404, data: { error: 'Funcionário não encontrado' } };
 
+    const novaFuncao = body.funcao;
+    const novaNatureza = body.natureza;
+    const antigaFuncao = funcionarioExistente[0]?.funcao;
+    const antigaNatureza = funcionarioExistente[0]?.natureza;
+
+    if (novaFuncao !== antigaFuncao) {
+      await LimiteService.atualizarLimitesDeFuncao(
+        antigaFuncao,
+        novaFuncao,
+        antigaNatureza,
+        novaNatureza
+      );
+    }
+
     const fotoUrlAWS = files?.foto
       ? await awsUtils.uploadFile(files.foto[0], 'fotos')
       : funcionarioExistente.foto;
@@ -214,7 +229,7 @@ class FuncionarioService {
 
     await FuncionarioRepository.updateCoordenadoria(userIds, newCoordId);
 
-    await CacheService.clearCacheForFuncionarios(...oldCoordIds);
+    await CacheService.clearCacheForCoordChange(oldCoordIds, newCoordId);
 
     return FuncionarioRepository.findByIds(userIds);
   }

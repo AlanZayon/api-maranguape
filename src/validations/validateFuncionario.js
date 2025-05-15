@@ -28,7 +28,7 @@ const funcionarioJoiSchema = Joi.object({
     )
     .optional(),
   salarioBruto: Joi.number().required(),
-  salarioLiquido: Joi.number().required(),
+  cidade: Joi.string().allow(''),
   endereco: Joi.string().allow(''),
   bairro: Joi.string().allow(''),
   telefone: Joi.string().allow(''),

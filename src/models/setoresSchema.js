@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const dbFuncionarios = require('../config/Mongoose/funcionariosConnection');
 
+const db = dbFuncionarios();
+
 // Esquema de coordenadoria
 const setorSchema = new mongoose.Schema({
   nome: { type: String, required: true },
@@ -33,6 +35,6 @@ setorSchema.pre('save', function (next) {
   }
   next();
 });
-const Setor = dbFuncionarios.model('Setor', setorSchema);
+const Setor = db.model('Setor', setorSchema);
 
 module.exports = Setor;
