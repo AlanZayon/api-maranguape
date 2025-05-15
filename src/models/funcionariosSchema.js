@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const dbFuncionarios = require('../config/Mongoose/funcionariosConnection');
 
+const db = dbFuncionarios();
+
 // Esquema de funcionário
 const funcionarioSchema = new mongoose.Schema({
   nome: { type: String, required: true },
@@ -18,8 +20,8 @@ const funcionarioSchema = new mongoose.Schema({
     },
   ],
   salarioBruto: { type: Number, required: true },
-  salarioLiquido: { type: Number, required: true },
   endereco: { type: String },
+  cidade: { type: String },
   bairro: { type: String },
   telefone: { type: String },
   observacoes: [{ type: String }],
@@ -32,6 +34,6 @@ const funcionarioSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
-const Funcionario = dbFuncionarios.model('Funcionario', funcionarioSchema);
+const Funcionario = db.model('Funcionario', funcionarioSchema);
 
 module.exports = Funcionario;

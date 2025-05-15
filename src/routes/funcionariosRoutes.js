@@ -25,8 +25,8 @@ router.post(
 );
 router.put(
   '/edit-funcionario/:id',
-  validate(funcionarioJoiSchema),
   upload,
+  validate(funcionarioJoiSchema),
   FuncionarioController.updateFuncionario
 );
 router.delete('/delete-users', FuncionarioController.deleteUsers);

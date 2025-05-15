@@ -25,6 +25,18 @@ class CacheService {
     await redisClient.del('todos:funcionarios');
     await redisClient.del('todos:cargosComissionados');
   }
+
+  static async clearCacheForCoordChange(oldCoordIds, newCoordId) {
+    const keys = [...new Set([...oldCoordIds, newCoordId])];
+
+    for (const key of keys) {
+      await redisClient.del(`coordenadoria:${key}:funcionarios`);
+      await redisClient.del(`setor:${key}:funcionarios`);
+    }
+
+    await redisClient.del('todos:funcionarios');
+    await redisClient.del('todos:cargosComissionados');
+  }
 }
 
 module.exports = CacheService;

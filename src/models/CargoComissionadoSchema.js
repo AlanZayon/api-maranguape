@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const dbFuncionarios = require('../config/Mongoose/funcionariosConnection');
 
+const db = dbFuncionarios();
+
 const CargoSchema = new mongoose.Schema({
   tipo: {
     type: String,
@@ -27,9 +29,6 @@ const CargoSchema = new mongoose.Schema({
   },
 });
 
-const CargoComissionado = dbFuncionarios.model(
-  'Cargocomissionado',
-  CargoSchema
-);
+const CargoComissionado = db.model('Cargocomissionado', CargoSchema);
 
 module.exports = CargoComissionado;

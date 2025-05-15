@@ -1,5 +1,6 @@
 const express = require('express');
 const dotenv = require('dotenv');
+dotenv.config();
 const helmet = require('helmet');
 const compression = require('compression');
 const cors = require('cors');
@@ -12,8 +13,6 @@ const usuarioRoute = require('./routes/usuariosRoute');
 const setoresRoutes = require('./routes/setoresRoutes');
 const funcionariosRoutes = require('./routes/funcionariosRoutes');
 const referenciasRoutes = require('./routes/referenciasRoutes');
-
-dotenv.config();
 
 const app = express();
 

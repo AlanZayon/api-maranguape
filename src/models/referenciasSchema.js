@@ -1,13 +1,10 @@
 const mongoose = require('mongoose');
 const dbFuncionarios = require('../config/Mongoose/funcionariosConnection');
 
+const db = dbFuncionarios();
+
 const referenceSchema = new mongoose.Schema({
   name: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  sobrenome: {
     type: String,
     required: true,
     trim: true,
@@ -22,6 +19,6 @@ const referenceSchema = new mongoose.Schema({
   },
 });
 
-const Referencia = dbFuncionarios.model('Reference', referenceSchema);
+const Referencia = db.model('Reference', referenceSchema);
 
 module.exports = Referencia;
