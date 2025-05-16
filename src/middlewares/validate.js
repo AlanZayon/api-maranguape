@@ -15,7 +15,10 @@ const validate = (schema) => (req, res, next) => {
     req.body.observacoes = JSON.parse(req.body.observacoes || '[]');
   }
 
-  const { error } = schema.validate(req.body);
+  const { value, error } = schema.validate(req.body, {
+    stripUnknown: true,
+    convert: true,
+  });
 
   if (error) {
     console.error('Erro de validação:', error);
@@ -23,6 +26,8 @@ const validate = (schema) => (req, res, next) => {
       message: error.details.map((err) => err.message).join(', '),
     });
   }
+
+  req.body = value; // <-- substitui com a versão limpa/normalizada
   next();
 };
 
