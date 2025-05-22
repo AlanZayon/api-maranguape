@@ -13,6 +13,7 @@ const usuarioRoute = require('./routes/usuariosRoute');
 const setoresRoutes = require('./routes/setoresRoutes');
 const funcionariosRoutes = require('./routes/funcionariosRoutes');
 const referenciasRoutes = require('./routes/referenciasRoutes');
+const searchRoutes = require('./routes/searchRoutes');
 
 const app = express();
 
@@ -78,5 +79,6 @@ app.use('/api/setores', setoresRoutes);
 app.use('/api/funcionarios', funcionariosRoutes);
 app.use('/api/usuarios', usuarioRoute);
 app.use('/api/referencias', referenciasRoutes);
+app.use('/api/search', searchRoutes);
 
 module.exports = app;
