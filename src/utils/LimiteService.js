@@ -12,12 +12,12 @@ class LimiteService {
       CargoRepository.buscarPorNome(novaFuncaoNome),
     ]);
 
-    if (antigaNatureza === 'comissionado') {
+    if (antigaNatureza === 'COMISSIONADO') {
       const novoLimite = (antigaFuncao.limite || 0) + 1;
       await CargoRepository.updateLimit(antigaFuncao._id, novoLimite);
     }
 
-    if (novaNatureza === 'comissionado') {
+    if (novaNatureza === 'COMISSIONADO') {
       const novoLimite = (novaFuncao.limite || 0) - 1;
       await CargoRepository.updateLimit(novaFuncao._id, novoLimite);
     }
