@@ -21,6 +21,7 @@ router.get('/autocomplete', async (req, res) => {
               { autocomplete: { query: termo, path: 'cidade' } },
               { autocomplete: { query: termo, path: 'natureza' } },
               { autocomplete: { query: termo, path: 'tipo' } },
+              { autocomplete: { query: termo, path: 'referencia' } },
             ],
           },
         },
@@ -82,7 +83,19 @@ router.get('/autocomplete', async (req, res) => {
                                     },
                                   },
                                   '$natureza',
-                                  '$tipo',
+                                  {
+                                    $cond: [
+                                      {
+                                        $regexMatch: {
+                                          input: '$tipo',
+                                          regex: termo,
+                                          options: 'i',
+                                        },
+                                      },
+                                      '$tipo',
+                                      '$referencia',
+                                    ],
+                                  },
                                 ],
                               },
                             ],

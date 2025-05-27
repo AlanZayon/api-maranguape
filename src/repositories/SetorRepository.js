@@ -50,7 +50,6 @@ class SetorRepository {
       s._id,
       ...s.descendants.map((d) => d._id),
     ]);
-    console.log('ids para deletar:', idsParaDeletar);
 
     return await Setor.deleteMany({ _id: { $in: idsParaDeletar } });
   }

@@ -83,8 +83,12 @@ class FuncionarioRepository {
     }
   }
 
-  static save(user) {
-    return user.save();
+  static async updateObservacoes(userId, observacoes) {
+    return Funcionario.findByIdAndUpdate(
+      userId,
+      { observacoes },
+      { new: true }
+    );
   }
 
   static contarTotal() {

@@ -80,8 +80,11 @@ class FuncionarioService {
       ? await awsUtils.uploadFile(req.files.arquivo[0], 'arquivos')
       : null;
 
-    if (req.body.natureza === 'comissionado') {
+    if (req.body.natureza === 'COMISSIONADO') {
+      console.log('funcao:', req.body.funcao);
       const cargo = await CargoComissionado.buscarPorNome(req.body.funcao);
+
+      console.log('Cargo encontrado:', cargo);
 
       if (cargo.limite === 0) {
         throw new Error('Não é possível criar funcionário: limite atingido.');
@@ -177,7 +180,7 @@ class FuncionarioService {
             const funcionarios = await FuncionarioRepository.findByIds(batch);
 
             funcionariosComissionados += funcionarios.filter(
-              (f) => f.natureza === 'comissionado'
+              (f) => f.natureza === 'COMISSIONADO'
             ).length;
 
             funcionarios.forEach((func) => {
@@ -185,7 +188,7 @@ class FuncionarioService {
                 setoresAfetados.add(func.coordenadoria);
               }
 
-              if (func.natureza === 'comissionado' && func.funcao) {
+              if (func.natureza === 'COMISSIONADO' && func.funcao) {
                 cargosComissionados.add(func.funcao);
               }
             });
@@ -241,8 +244,12 @@ class FuncionarioService {
       throw new Error('Usuário não encontrado.');
     }
 
-    user.observacoes = observacoes; // Atualiza as observações
-    const updatedFuncionario = await FuncionarioRepository.save(user);
+    user.observacoes = observacoes;
+
+    const updatedFuncionario = await FuncionarioRepository.updateObservacoes(
+      userId,
+      observacoes
+    );
 
     // Lógica de cache abstraída
     await CacheService.clearCacheForFuncionarios(user.coordenadoria);

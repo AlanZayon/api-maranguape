@@ -2,8 +2,6 @@ const Joi = require('joi');
 
 // Função para normalizar texto: remove acentos, troca ç por c e converte para maiúsculas
 const normalizarTexto = (valor) => {
-  console.log('Valor recebido para normalização:', valor);
-  console.log('Tipo do valor recebido:', typeof valor);
   if (typeof valor !== 'string' || !valor.trim()) return valor;
   return valor
     .normalize('NFD')
