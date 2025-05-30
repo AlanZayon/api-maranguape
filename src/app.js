@@ -5,10 +5,8 @@ const helmet = require('helmet');
 const compression = require('compression');
 const cors = require('cors');
 const morgan = require('morgan');
-const bcrypt = require('bcryptjs');
-const Cookies = require('cookies');
+const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
-const redis = require('./config/redisClient');
 const usuarioRoute = require('./routes/usuariosRoute');
 const setoresRoutes = require('./routes/setoresRoutes');
 const funcionariosRoutes = require('./routes/funcionariosRoutes');
@@ -36,25 +34,13 @@ const corsOptions = {
 };
 
 // Middlewares globais
-app.use(morgan('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use((req, res, next) => {
-  req.cookies = new Cookies(req, res); // Cria a instância de Cookies para cada requisição
-  next(); // Passa para o próximo middleware ou rota
-});
 app.use(cors(corsOptions));
 app.use(helmet());
+app.use(morgan('dev'));
+app.use(cookieParser());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(compression());
-
-// Exemplo de teste de conexão
-redis.on('connect', () => {
-  console.log('Conectado ao Redis!');
-});
-
-redis.on('error', (err) => {
-  console.error('Erro no Redis:', err);
-});
 
 app.set('trust proxy', 1);
 
@@ -67,12 +53,7 @@ app.use(limiter);
 
 // Rotas (adicionaremos rotas mais tarde)
 app.get('/', async (req, res) => {
-  const senha = 'Pref@2024';
-  const saltRounds = 10;
-  const hash = await bcrypt.hash(senha, saltRounds);
-  console.log('Hash da senha:', hash);
-
-  res.send('Hello World!, Pref@2024');
+  res.send('Hello World!');
 });
 
 app.use('/api/setores', setoresRoutes);

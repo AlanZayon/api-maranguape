@@ -27,7 +27,7 @@ const validate = (schema) => (req, res, next) => {
     });
   }
 
-  req.body = value; // <-- substitui com a versão limpa/normalizada
+  req.body = value;
   next();
 };
 

@@ -6,38 +6,46 @@ const jwt = require('jsonwebtoken');
 router.post('/login', async (req, res) => {
   const { id, password } = req.body;
 
+  const tokenLogin = req.cookies.authToken;
+
   try {
-    // Verifica se o usuário existe
-    console.log(id, password);
     const user = await User.findOne({ id });
-    console.log(user);
-    if (!user) {
+    if (!user)
       return res
         .status(401)
-        .json({ message: 'Credenciais Incorretas do usuario' });
+        .json({ message: 'Credenciais Incorretas do usuário' });
+
+    if (
+      !user ||
+      (user.lastValidToken !== tokenLogin && user.lastValidToken !== null)
+    ) {
+      return res.status(401).json({
+        message: 'Sessão inválida (possível login em outro dispositivo)',
+      });
     }
 
-    // Compara a senha fornecida com a armazenada
     const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res
-        .status(401)
-        .json({ message: 'Credenciais Incorretas da senha' });
-    }
+    if (!isMatch)
+      if (!isMatch)
+        return res
+          .status(401)
+          .json({ message: 'Credenciais Incorretas da senha' });
 
-    // Gera o token JWT
     const token = jwt.sign(
       { id: user._id, role: user.role, username: user.username },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
 
-    // Envia o token no cookie
+    user.lastValidToken = token;
+    await user.save();
+
     res.cookie('authToken', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000,
-      sameSite: 'None',
+      path: '/',
     });
 
     res.json({
@@ -45,27 +53,36 @@ router.post('/login', async (req, res) => {
       username: user.username,
       role: user.role,
     });
-  } catch (error) {
-    console.error('Erro no login:', error);
-    res.status(500).json({ message: 'Erro interno do servidor' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro interno', error: err.message });
   }
 });
 
-router.post('/logout', (req, res) => {
-  // Limpa o cookie 'authToken' definindo uma data de expiração no passado
-  res.cookie('authToken', '', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // Pode ser removido ou ajustado se não estiver em produção
-    maxAge: 0, // Define o tempo de expiração do cookie para 0, efetivamente apagando-o
-    sameSite: 'None',
-  });
+router.post('/logout', async (req, res) => {
+  const token = req.cookies.authToken;
+  if (!token) return res.sendStatus(204);
 
-  // Retorna uma resposta de sucesso
-  return res.json({ message: 'Logout realizado com sucesso' });
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+    if (user) {
+      user.lastValidToken = null;
+      await user.save();
+    }
+
+    res.clearCookie('authToken', {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+    });
+    res.status(200).json({ message: 'Logout realizado com sucesso!' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro no logout', error: err.message });
+  }
 });
 
 router.get('/verify', (req, res) => {
-  const token = req.cookies.get('authToken'); // Recupera o token do cookie
+  const token = req.cookies.authToken;
 
   if (!token) {
     return res.status(401).json({ authenticated: false });
@@ -73,11 +90,11 @@ router.get('/verify', (req, res) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log(decoded);
+
     res.json({
       authenticated: true,
       username: decoded.username,
-      role: decoded.role, // Ou qualquer informação que você tenha no token
+      role: decoded.role,
     });
   } catch {
     return res.status(401).json({ authenticated: false });
