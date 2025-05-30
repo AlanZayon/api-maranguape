@@ -6,6 +6,10 @@ class FuncionarioRepository {
     return Funcionario.find().lean();
   }
 
+  static async findByName(name) {
+    return await Funcionario.findOne({ nome: name });
+  }
+
   static findByIds(userIds) {
     return Funcionario.find({ _id: { $in: userIds } }).lean();
   }

@@ -6,6 +6,7 @@ class SetorController {
       const result = await SetorService.createSetor(req.body);
       res.status(201).json(result);
     } catch (error) {
+      console.error('Erro ao criar setor:', error);
       res
         .status(500)
         .json({ error: 'Erro ao criar setor', message: error.message });
