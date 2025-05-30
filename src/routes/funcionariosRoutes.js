@@ -41,4 +41,6 @@ router.post(
 );
 router.get('/buscarCargos', FuncionarioController.buscarCargos);
 
+router.get('/check-name', FuncionarioController.checkName);
+
 module.exports = router;

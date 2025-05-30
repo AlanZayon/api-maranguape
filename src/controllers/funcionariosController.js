@@ -44,6 +44,14 @@ class FuncionarioController {
       res.status(201).json(funcionario);
     } catch (error) {
       console.error(error);
+
+      if (error.code === 11000) {
+        return res.status(400).json({
+          error: 'Já existe um funcionário com esse nome ou outro campo único.',
+          campoDuplicado: Object.keys(error.keyValue)[0],
+        });
+      }
+
       res.status(500).json({ error: 'Erro ao criar funcionário' });
     }
   }
@@ -117,6 +125,25 @@ class FuncionarioController {
       res.status(200).json(cargos);
     } catch {
       res.status(500).json({ error: 'Erro ao buscar cargos comissionados' });
+    }
+  }
+
+  static async checkName(req, res) {
+    try {
+      const { name } = req.query;
+
+      const result = await FuncionarioService.checkNameAvailability(name);
+
+      res.status(result.statusCode).json({
+        available: result.available,
+        message: result.message,
+      });
+    } catch (error) {
+      console.error('Erro ao verificar nome:', error);
+      res.status(500).json({
+        available: false,
+        message: 'Erro ao verificar disponibilidade do nome',
+      });
     }
   }
 }

@@ -5,7 +5,7 @@ const db = dbFuncionarios();
 
 // Esquema de funcionário
 const funcionarioSchema = new mongoose.Schema({
-  nome: { type: String, required: true },
+  nome: { type: String, required: true, unique: true },
   foto: { type: String, default: null },
   secretaria: { type: String, required: true },
   funcao: { type: String, required: true },

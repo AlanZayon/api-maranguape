@@ -256,6 +256,32 @@ class FuncionarioService {
 
     return updatedFuncionario;
   }
+
+  static async checkNameAvailability(name) {
+    if (!name || name.trim().length < 3) {
+      return {
+        available: true,
+        message: 'Digite pelo menos 3 caracteres',
+        statusCode: 400,
+      };
+    }
+
+    const existingFuncionario = await FuncionarioRepository.findByName(name);
+
+    if (existingFuncionario) {
+      return {
+        available: false,
+        message: 'Já existe um funcionário ativo com este nome',
+        statusCode: 200,
+      };
+    }
+
+    return {
+      available: true,
+      message: 'Nome disponível',
+      statusCode: 200,
+    };
+  }
 }
 
 module.exports = FuncionarioService;
