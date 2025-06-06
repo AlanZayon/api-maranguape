@@ -2,6 +2,10 @@ const Funcionario = require('../models/funcionariosSchema');
 const Setores = require('../models/setoresSchema');
 
 class FuncionarioRepository {
+  static async countDocuments() {
+    return await Funcionario.countDocuments();
+  }
+
   static findAll() {
     return Funcionario.find().lean();
   }
@@ -20,7 +24,39 @@ class FuncionarioRepository {
     }).lean();
   }
 
-  static async buscarFuncionariosPorSetor(idSetor) {
+  static async countBySetor(idSetor) {
+    const result = await Setores.aggregate([
+      {
+        $match: { _id: idSetor },
+      },
+      {
+        $graphLookup: {
+          from: 'setors',
+          startWith: '$_id',
+          connectFromField: '_id',
+          connectToField: 'parent',
+          as: 'hierarquia',
+        },
+      },
+      {
+        $lookup: {
+          from: 'funcionarios',
+          localField: 'hierarquia._id',
+          foreignField: 'coordenadoria',
+          as: 'funcionarios',
+        },
+      },
+      {
+        $project: {
+          count: { $size: '$funcionarios' },
+        },
+      },
+    ]);
+
+    return result[0]?.count || 0;
+  }
+
+  static async buscarFuncionariosPorSetor(idSetor, skip = 0, limit = 100) {
     return await Setores.aggregate([
       {
         $match: { _id: idSetor },
@@ -50,6 +86,8 @@ class FuncionarioRepository {
           newRoot: '$funcionarios',
         },
       },
+      { $skip: skip },
+      { $limit: limit },
     ]);
   }
 

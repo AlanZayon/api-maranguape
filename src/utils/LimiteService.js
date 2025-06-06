@@ -1,5 +1,4 @@
 const CargoRepository = require('../repositories/cargoComissionadoRepository');
-
 class LimiteService {
   static async atualizarLimitesDeFuncao(
     antigaFuncaoNome,
@@ -13,13 +12,19 @@ class LimiteService {
     ]);
 
     if (antigaNatureza === 'COMISSIONADO') {
-      const novoLimite = (antigaFuncao.limite || 0) + 1;
-      await CargoRepository.updateLimit(antigaFuncao._id, novoLimite);
+      const simbologia = await CargoRepository.buscarPorSimbologia(
+        antigaFuncao.simbologia
+      );
+      const novoLimite = (simbologia?.limite || 0) + 1;
+      await CargoRepository.updateLimite(simbologia.simbologia, novoLimite);
     }
 
     if (novaNatureza === 'COMISSIONADO') {
-      const novoLimite = (novaFuncao.limite || 0) - 1;
-      await CargoRepository.updateLimit(novaFuncao._id, novoLimite);
+      const simbologia = await CargoRepository.buscarPorSimbologia(
+        novaFuncao.simbologia
+      );
+      const novoLimite = (simbologia?.limite || 0) - 1;
+      await CargoRepository.updateLimite(simbologia.simbologia, novoLimite);
     }
   }
 }

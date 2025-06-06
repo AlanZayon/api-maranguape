@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const FuncionarioRepository = require('../repositories/FuncionariosRepository');
+const SetorRepository = require('../repositories/SetorRepository');
 const CargoComissionado = require('../repositories/cargoComissionadoRepository');
 const CacheService = require('../services/CacheService');
 const awsUtils = require('../utils/awsUtils');
@@ -8,23 +9,40 @@ const LimiteService = require('../utils/LimiteService');
 const BATCH_SIZE = 100;
 
 class FuncionarioService {
-  static async buscarFuncionarios() {
-    return await CacheService.getOrSetCache(`todos:funcionarios`, async () => {
-      const funcionarios = await FuncionarioRepository.findAll();
+  static async buscarFuncionarios(page = 1, limit = 100) {
+    return await CacheService.getOrSetCache(
+      `todos:funcionarios:page${page}`,
+      async () => {
+        const skip = (page - 1) * limit;
 
-      return await Promise.all(
-        funcionarios.map(async (funcionario) => ({
-          ...funcionario,
-          fotoUrl: funcionario.foto
-            ? await awsUtils.gerarUrlPreAssinada(funcionario.foto)
-            : null,
-          arquivoUrl: funcionario.arquivo
-            ? await awsUtils.gerarUrlPreAssinada(funcionario.arquivo)
-            : null,
-        }))
-      );
-    });
+        const total = await FuncionarioRepository.countDocuments();
+
+        const funcionarios = await FuncionarioRepository.findAll()
+          .skip(skip)
+          .limit(limit);
+
+        const funcionariosComUrls = await Promise.all(
+          funcionarios.map(async (funcionario) => ({
+            ...funcionario,
+            fotoUrl: funcionario.foto
+              ? await awsUtils.gerarUrlPreAssinada(funcionario.foto)
+              : null,
+            arquivoUrl: funcionario.arquivo
+              ? await awsUtils.gerarUrlPreAssinada(funcionario.arquivo)
+              : null,
+          }))
+        );
+
+        return {
+          funcionarios: funcionariosComUrls,
+          total,
+          page,
+          pages: Math.ceil(total / limit),
+        };
+      }
+    );
   }
+
   static async buscarFuncionariosPorCoordenadoria(idCoordenadoria) {
     return await CacheService.getOrSetCache(
       `coordenadoria:${idCoordenadoria}:funcionarios`,
@@ -51,24 +69,44 @@ class FuncionarioService {
     );
   }
 
-  static async buscarFuncionariosPorSetor(idSetor) {
+  static async buscarFuncionariosPorSetor(idSetor, page = 1, limit = 100) {
     const objectId = mongoose.Types.ObjectId.isValid(idSetor)
       ? new mongoose.Types.ObjectId(idSetor)
       : idSetor;
 
-    const funcionarios =
-      await FuncionarioRepository.buscarFuncionariosPorSetor(objectId);
+    return await CacheService.getOrSetCache(
+      `setor:${idSetor}:funcionarios:page:${page}`,
+      async () => {
+        const skip = (page - 1) * limit;
 
-    return await Promise.all(
-      funcionarios.map(async (funcionario) => ({
-        ...funcionario,
-        fotoUrl: funcionario.foto
-          ? await awsUtils.gerarUrlPreAssinada(funcionario.foto)
-          : null,
-        arquivoUrl: funcionario.arquivo
-          ? await awsUtils.gerarUrlPreAssinada(funcionario.arquivo)
-          : null,
-      }))
+        const total = await FuncionarioRepository.countBySetor(objectId);
+
+        const funcionarios =
+          await FuncionarioRepository.buscarFuncionariosPorSetor(
+            objectId,
+            skip,
+            limit
+          );
+
+        const funcionariosComUrls = await Promise.all(
+          funcionarios.map(async (funcionario) => ({
+            ...funcionario,
+            fotoUrl: funcionario.foto
+              ? await awsUtils.gerarUrlPreAssinada(funcionario.foto)
+              : null,
+            arquivoUrl: funcionario.arquivo
+              ? await awsUtils.gerarUrlPreAssinada(funcionario.arquivo)
+              : null,
+          }))
+        );
+
+        return {
+          funcionarios: funcionariosComUrls,
+          total,
+          page,
+          pages: Math.ceil(total / limit),
+        };
+      }
     );
   }
 
@@ -81,16 +119,28 @@ class FuncionarioService {
       : null;
 
     if (req.body.natureza === 'COMISSIONADO') {
-      console.log('funcao:', req.body.funcao);
       const cargo = await CargoComissionado.buscarPorNome(req.body.funcao);
 
-      console.log('Cargo encontrado:', cargo);
+      if (!cargo) {
+        throw new Error('Cargo comissionado não encontrado.');
+      }
 
-      if (cargo.limite === 0) {
+      const simbologia = await CargoComissionado.buscarPorSimbologia(
+        cargo.simbologia
+      );
+
+      if (!simbologia) {
+        throw new Error('Simbologia não encontrada para o cargo.');
+      }
+
+      if (simbologia.limite === 0) {
         throw new Error('Não é possível criar funcionário: limite atingido.');
       }
 
-      await CargoComissionado.updateLimit(cargo._id, cargo.limite - 1);
+      await CargoComissionado.updateLimite(
+        simbologia.simbologia,
+        simbologia.limite - 1
+      );
     }
 
     const funcionarioCriado = await FuncionarioRepository.create({
@@ -99,8 +149,13 @@ class FuncionarioService {
       arquivo: arquivoUrlAWS,
     });
 
+    const setor = await SetorRepository.findSetorByCoordenadoria([
+      funcionarioCriado.coordenadoria,
+    ]);
+
     await CacheService.clearCacheForFuncionarios(
-      funcionarioCriado.coordenadoria
+      funcionarioCriado.coordenadoria,
+      setor[0].parent
     );
 
     return {
@@ -147,8 +202,14 @@ class FuncionarioService {
       foto: fotoUrlAWS,
       arquivo: arquivoUrlAWS,
     });
+
+    const setor = await SetorRepository.findSetorByCoordenadoria([
+      funcionarioAtualizado.coordenadoria,
+    ]);
+
     await CacheService.clearCacheForFuncionarios(
-      funcionarioAtualizado.coordenadoria
+      funcionarioAtualizado.coordenadoria,
+      setor[0].parent
     );
 
     return {
@@ -169,8 +230,7 @@ class FuncionarioService {
     try {
       const setoresAfetados = new Set();
       const batchPromises = [];
-      const cargosComissionados = new Set();
-      let funcionariosComissionados = 0;
+      const cargosComissionados = new Map(); // nomeFuncao -> count
 
       for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
         const batch = userIds.slice(i, i + BATCH_SIZE);
@@ -179,17 +239,14 @@ class FuncionarioService {
           (async () => {
             const funcionarios = await FuncionarioRepository.findByIds(batch);
 
-            funcionariosComissionados += funcionarios.filter(
-              (f) => f.natureza === 'COMISSIONADO'
-            ).length;
-
             funcionarios.forEach((func) => {
               if (func.coordenadoria) {
                 setoresAfetados.add(func.coordenadoria);
               }
 
               if (func.natureza === 'COMISSIONADO' && func.funcao) {
-                cargosComissionados.add(func.funcao);
+                const atual = cargosComissionados.get(func.funcao) || 0;
+                cargosComissionados.set(func.funcao, atual + 1);
               }
             });
 
@@ -200,27 +257,22 @@ class FuncionarioService {
 
       await Promise.all(batchPromises);
 
-      for (const nomeFuncao of cargosComissionados) {
+      for (const [nomeFuncao, qtd] of cargosComissionados) {
         const cargo = await CargoComissionado.buscarPorNome(nomeFuncao);
-        if (cargo) {
-          await CargoComissionado.updateLimit(
-            cargo._id,
-            cargo.limite + funcionariosComissionados
+        if (cargo && cargo.simbologia) {
+          const simbologiaAtual = await CargoComissionado.buscarPorSimbologia(
+            cargo.simbologia
           );
+          const novoLimite = (simbologiaAtual?.limite || 0) + qtd;
+          await CargoComissionado.updateLimite(cargo.simbologia, novoLimite);
         }
       }
 
-      if (setoresAfetados.size > 0) {
-        await CacheService.clearCacheForFuncionarios(...setoresAfetados);
-      }
-
-      return {
-        success: true,
-        message: 'Usuários deletados e cache atualizado.',
-      };
+      const setoresAfetadosArray = Array.from(setoresAfetados);
+      await CacheService.clearCacheForFuncionarios(setoresAfetadosArray);
     } catch (error) {
       console.error('Erro ao deletar usuários:', error);
-      throw new Error('Erro ao processar exclusão de usuários.');
+      throw error;
     }
   }
 
@@ -230,9 +282,17 @@ class FuncionarioService {
       .map((u) => u.coordenadoria?.toString())
       .filter((id) => id);
 
+    const oldCoordenadorias =
+      await SetorRepository.findSetorByCoordenadoria(oldCoordIds);
+    const parentIds = oldCoordenadorias.map((c) => c.parent).filter(Boolean);
+
     await FuncionarioRepository.updateCoordenadoria(userIds, newCoordId);
 
-    await CacheService.clearCacheForCoordChange(oldCoordIds, newCoordId);
+    await CacheService.clearCacheForCoordChange(
+      oldCoordIds,
+      newCoordId,
+      parentIds
+    );
 
     return FuncionarioRepository.findByIds(userIds);
   }
@@ -244,15 +304,19 @@ class FuncionarioService {
       throw new Error('Usuário não encontrado.');
     }
 
-    user.observacoes = observacoes;
-
     const updatedFuncionario = await FuncionarioRepository.updateObservacoes(
       userId,
       observacoes
     );
 
-    // Lógica de cache abstraída
-    await CacheService.clearCacheForFuncionarios(user.coordenadoria);
+    const setor = await SetorRepository.findSetorByCoordenadoria([
+      updatedFuncionario.coordenadoria,
+    ]);
+
+    await CacheService.clearCacheForFuncionarios(
+      updatedFuncionario.coordenadoria,
+      setor[0].parent
+    );
 
     return updatedFuncionario;
   }
@@ -266,7 +330,10 @@ class FuncionarioService {
       };
     }
 
-    const existingFuncionario = await FuncionarioRepository.findByName(name);
+    const normalizedName = normalizarTexto(name);
+
+    const existingFuncionario =
+      await FuncionarioRepository.findByName(normalizedName);
 
     if (existingFuncionario) {
       return {
@@ -283,5 +350,15 @@ class FuncionarioService {
     };
   }
 }
+
+const normalizarTexto = (valor) => {
+  if (typeof valor !== 'string' || !valor.trim()) return valor;
+  return valor
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ç/g, 'c')
+    .replace(/Ç/g, 'C')
+    .toUpperCase();
+};
 
 module.exports = FuncionarioService;
