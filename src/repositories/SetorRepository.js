@@ -19,7 +19,7 @@ class SetorRepository {
   }
 
   static async findSetorByCoordenadoria(setorIds) {
-    return await Setor.find({ setorId: { $in: setorIds } });
+    return await Setor.find({ _id: { $in: setorIds } });
   }
 
   static async updateNome(id, nome) {

@@ -9,56 +9,33 @@ class CacheService {
     return freshData;
   }
 
-  static async clearCacheForSetor(...ids) {
-    const scanKeys = async (pattern) => {
-      let cursor = '0';
-      let keys = [];
+  static async clearCacheForSetor(id) {
+    const setorKey = `setor:${id}:dados`;
+    const existsAsSetor = await redisClient.exists(setorKey);
 
-      do {
-        const result = await redisClient.scan(
-          cursor,
-          'MATCH',
-          pattern,
-          'COUNT',
-          100
-        );
-        cursor = result[0];
-        keys = keys.concat(result[1]);
-      } while (cursor !== '0');
+    if (existsAsSetor) {
+      await redisClient.del(setorKey);
+    } else {
+      const allSetorKeys = await redisClient.keys('setor:*:dados');
 
-      return keys;
-    };
+      for (const key of allSetorKeys) {
+        const data = await redisClient.get(key);
+        if (!data) continue;
 
-    await Promise.all(
-      ids.map(async (id) => {
-        const possibleSetorKey = `setor:${id}:dados`;
-        const existsAsSetor = await redisClient.exists(possibleSetorKey);
+        try {
+          const parsed = JSON.parse(data);
+          const subsetores = parsed.subsetores || [];
+          const found = subsetores.some((s) => s._id === id);
 
-        if (existsAsSetor) {
-          await redisClient.del(possibleSetorKey);
-        } else {
-          const allSetorKeys = await scanKeys('setor:*:dados');
-
-          for (const key of allSetorKeys) {
-            const data = await redisClient.get(key);
-            if (!data) continue;
-
-            try {
-              const parsed = JSON.parse(data);
-              const subsetores = parsed.subsetores || [];
-              const found = subsetores.find((s) => s._id === id);
-
-              if (found) {
-                await redisClient.del(key);
-                break;
-              }
-            } catch (err) {
-              console.error(`Erro ao parsear cache ${key}:`, err.message);
-            }
+          if (found) {
+            await redisClient.del(key);
+            break;
           }
+        } catch (err) {
+          console.error(`Erro ao parsear cache ${key}:`, err.message);
         }
-      })
-    );
+      }
+    }
 
     await Promise.all([
       redisClient.del('setores:null'),
@@ -68,22 +45,46 @@ class CacheService {
 
   static async clearCacheForFuncionarios(...keys) {
     for (const key of keys) {
+      const setorKeys = await redisClient.keys(
+        `setor:${key}:funcionarios:page:*`
+      );
+      if (setorKeys.length > 0) {
+        await redisClient.del(...setorKeys);
+      }
+
       await redisClient.del(`coordenadoria:${key}:funcionarios`);
-      await redisClient.del(`setor:${key}:funcionarios`);
     }
-    await redisClient.del('todos:funcionarios');
+
+    const todosFuncionariosKeys = await redisClient.keys(
+      'todos:funcionarios:page*'
+    );
+    if (todosFuncionariosKeys.length > 0) {
+      await redisClient.del(...todosFuncionariosKeys);
+    }
+
+    await redisClient.del('funcionarios:total');
     await redisClient.del('todos:cargosComissionados');
   }
 
-  static async clearCacheForCoordChange(oldCoordIds, newCoordId) {
-    const keys = [...new Set([...oldCoordIds, newCoordId])];
+  static async clearCacheForCoordChange(
+    oldCoordIds,
+    newCoordId,
+    parentIds = []
+  ) {
+    const keys = [...new Set([...oldCoordIds, newCoordId, ...parentIds])];
 
     for (const key of keys) {
       await redisClient.del(`coordenadoria:${key}:funcionarios`);
       await redisClient.del(`setor:${key}:funcionarios`);
     }
 
-    await redisClient.del('todos:funcionarios');
+    const todosFuncionariosKeys = await redisClient.keys(
+      'todos:funcionarios:page*'
+    );
+    if (todosFuncionariosKeys.length > 0) {
+      await redisClient.del(...todosFuncionariosKeys);
+    }
+    await redisClient.del('funcionarios:total');
     await redisClient.del('todos:cargosComissionados');
   }
 }

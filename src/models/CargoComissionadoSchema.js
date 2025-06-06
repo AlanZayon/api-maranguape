@@ -23,10 +23,6 @@ const CargoSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
-  limite: {
-    type: Number,
-    required: true,
-  },
 });
 
 const CargoComissionado = db.model('Cargocomissionado', CargoSchema);

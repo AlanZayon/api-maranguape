@@ -4,8 +4,14 @@ const Logger = require('../utils/Logger');
 
 class FuncionarioController {
   static async buscarFuncionarios(req, res) {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 100;
+
     try {
-      const funcionarios = await FuncionarioService.buscarFuncionarios();
+      const funcionarios = await FuncionarioService.buscarFuncionarios(
+        page,
+        limit
+      );
 
       res.json(funcionarios);
     } catch (err) {
