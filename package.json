@@ -31,7 +31,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.8.0",
     "morgan": "^1.10.0",
-    "multer": "^2.0.0",
+    "multer": "^2.0.1",
     "pdfkit": "^0.15.2",
     "winston": "^3.16.0"
   },
