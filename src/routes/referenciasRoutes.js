@@ -8,7 +8,6 @@ router.post('/register-reference', async (req, res) => {
 
   // Validação: garantir que todos os campos estejam preenchidos
   if (!name) {
-    console.log('Erro: Campos obrigatórios não preenchidos');
     return res
       .status(400)
       .json({ message: 'Todos os campos são obrigatórios!' });
@@ -24,7 +23,6 @@ router.post('/register-reference', async (req, res) => {
     const existingReference = await Reference.findOne({ name });
 
     if (existingReference) {
-      console.log('Erro: Já existe uma referência com este nome e sobrenome');
       return res.status(400).json({
         message: 'Já existe uma referência com este nome e sobrenome!',
       });
@@ -53,7 +51,6 @@ router.get('/referencias-dados', async (req, res) => {
     const cacheData = await redis.get('referencias-dados');
 
     if (cacheData) {
-      console.log('Cache encontrado, enviando dados do Redis...');
       return res.json({ referencias: JSON.parse(cacheData) });
     }
 
@@ -63,7 +60,6 @@ router.get('/referencias-dados', async (req, res) => {
     // Armazena os dados no cache Redis (tempo de expiração: 1 hora)
     await redis.setex('referencias-dados', 3600, JSON.stringify(referencias));
 
-    console.log('Dados do banco enviados e armazenados no cache.');
     res.json({ referencias });
   } catch (error) {
     console.error('Erro ao obter referências:', error.message);
