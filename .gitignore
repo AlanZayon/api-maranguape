@@ -24,3 +24,4 @@ dist/
 # Ignorar arquivos de backup
 *.bak
 
+gerar-dados.js
