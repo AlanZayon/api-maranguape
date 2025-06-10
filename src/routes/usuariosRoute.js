@@ -62,8 +62,10 @@ router.post('/logout', async (req, res) => {
   const token = req.cookies.authToken;
   if (!token) return res.sendStatus(204);
 
+  let decoded;
+
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id);
     if (user) {
       user.lastValidToken = null;
@@ -77,7 +79,21 @@ router.post('/logout', async (req, res) => {
     });
     res.status(200).json({ message: 'Logout realizado com sucesso!' });
   } catch (err) {
-    res.status(500).json({ message: 'Erro no logout', error: err.message });
+    if (err.name === 'TokenExpiredError') {
+      decoded = jwt.decode(token);
+    } else {
+      return res
+        .status(500)
+        .json({ message: 'Erro no logout', error: err.message });
+    }
+  }
+
+  if (decoded?.id) {
+    const user = await User.findById(decoded.id);
+    if (user) {
+      user.lastValidToken = null;
+      await user.save();
+    }
   }
 });
 

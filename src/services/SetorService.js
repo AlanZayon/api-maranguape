@@ -35,7 +35,9 @@ class SetorService {
   }
 
   static async renameSetor(id, nome) {
-    const setor = await SetorRepository.updateNome(id, nome);
+    const normalizedName = normalizarTexto(nome);
+    console.log(`Renaming setor ${id} to ${normalizedName}`);
+    const setor = await SetorRepository.updateNome(id, normalizedName);
     await CacheService.clearCacheForSetor(setor.parent);
     return setor;
   }
@@ -45,5 +47,14 @@ class SetorService {
     await CacheService.clearCacheForSetor(id);
   }
 }
+const normalizarTexto = (valor) => {
+  if (typeof valor !== 'string' || !valor.trim()) return valor;
+  return valor
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ç/g, 'c')
+    .replace(/Ç/g, 'C')
+    .toUpperCase();
+};
 
 module.exports = SetorService;
