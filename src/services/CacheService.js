@@ -101,7 +101,7 @@ class CacheService {
 
     for (const key of keys) {
       await redisClient.del(`coordenadoria:${key}:funcionarios`);
-      await redisClient.del(`setor:${key}:funcionarios`);
+      await redisClient.del(`setor:*:funcionarios:page:*`);
     }
 
     const todosFuncionariosKeys = await redisClient.keys(
