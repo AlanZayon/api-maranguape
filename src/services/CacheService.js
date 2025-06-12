@@ -3,11 +3,12 @@ const redisClient = require('../config/redisClient');
 class CacheService {
   static async getOrSetCache(key, fetchFunction) {
     const cachedData = await redisClient.get(key);
-    console.log(`🔍 Verificando cache para a chave: ${key}`);
-    console.log(`🔍 Verificando cache: ${cachedData}`);
     if (cachedData) return JSON.parse(cachedData);
     const freshData = await fetchFunction();
-    await redisClient.setex(key, 3600, JSON.stringify(freshData));
+    if (freshData?.funcionarios?.length) {
+      await redisClient.setex(key, 3600, JSON.stringify(freshData));
+    }
+
     return freshData;
   }
 
@@ -46,23 +47,18 @@ class CacheService {
   }
 
   static async clearCacheForFuncionarios(...keys) {
-    console.log(`🔍 Limpando cache para as chaves: ${keys}`);
-    for (const key of keys) {
-      const setorKeys = await redisClient.keys(`setor:*:funcionarios:page:*`);
+    const flatKeys = keys.flat(Infinity);
+    const uniqueKeys = [...new Set(flatKeys)];
+    for (const key of uniqueKeys) {
+      const setorKeys = await redisClient.keys(
+        `setor:${key}:funcionarios:page:*`
+      );
       if (setorKeys.length > 0) {
         await redisClient.del(...setorKeys);
-        console.log(`🧹 Limpou setorKeys: ${setorKeys.join(', ')}`);
-      } else {
-        console.log(`ℹ️ Nenhum cache encontrado para setor:${key}`);
       }
 
       const coordenadoriaKey = `coordenadoria:${key}:funcionarios`;
-      const deletedCoord = await redisClient.del(coordenadoriaKey);
-      if (deletedCoord) {
-        console.log(`🧹 Limpou ${coordenadoriaKey}`);
-      } else {
-        console.log(`ℹ️ Chave não encontrada: ${coordenadoriaKey}`);
-      }
+      await redisClient.del(coordenadoriaKey);
     }
 
     const todosFuncionariosKeys = await redisClient.keys(
@@ -70,26 +66,11 @@ class CacheService {
     );
     if (todosFuncionariosKeys.length > 0) {
       await redisClient.del(...todosFuncionariosKeys);
-      console.log(
-        `🧹 Limpou todosFuncionariosKeys: ${todosFuncionariosKeys.join(', ')}`
-      );
-    } else {
-      console.log(`ℹ️ Nenhum cache encontrado para todos:funcionarios:page*`);
     }
 
-    const totalDeleted = await redisClient.del('funcionarios:total');
-    console.log(
-      totalDeleted
-        ? '🧹 Limpou funcionarios:total'
-        : 'ℹ️ funcionarios:total não encontrado'
-    );
+    await redisClient.del('funcionarios:total');
 
-    const cargosDeleted = await redisClient.del('todos:cargosComissionados');
-    console.log(
-      cargosDeleted
-        ? '🧹 Limpou todos:cargosComissionados'
-        : 'ℹ️ todos:cargosComissionados não encontrado'
-    );
+    await redisClient.del('todos:cargosComissionados');
   }
 
   static async clearCacheForCoordChange(
@@ -100,8 +81,14 @@ class CacheService {
     const keys = [...new Set([...oldCoordIds, newCoordId, ...parentIds])];
 
     for (const key of keys) {
-      await redisClient.del(`coordenadoria:${key}:funcionarios`);
-      await redisClient.del(`setor:*:funcionarios:page:*`);
+      const coordKey = `coordenadoria:${key}:funcionarios`;
+      await redisClient.del(coordKey);
+
+      const setorPattern = `setor:${key}:funcionarios:page:*`;
+      const setorKeys = await redisClient.keys(setorPattern);
+      if (setorKeys.length > 0) {
+        await redisClient.del(...setorKeys);
+      }
     }
 
     const todosFuncionariosKeys = await redisClient.keys(
@@ -110,8 +97,12 @@ class CacheService {
     if (todosFuncionariosKeys.length > 0) {
       await redisClient.del(...todosFuncionariosKeys);
     }
-    await redisClient.del('funcionarios:total');
-    await redisClient.del('todos:cargosComissionados');
+
+    const totalKey = 'funcionarios:total';
+    await redisClient.del(totalKey);
+
+    const cargosKey = 'todos:cargosComissionados';
+    await redisClient.del(cargosKey);
   }
 }
 

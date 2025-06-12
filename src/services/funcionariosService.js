@@ -269,7 +269,17 @@ class FuncionarioService {
       }
 
       const setoresAfetadosArray = Array.from(setoresAfetados);
-      await CacheService.clearCacheForFuncionarios(setoresAfetadosArray);
+      const setores =
+        await SetorRepository.findSetorByCoordenadoria(setoresAfetadosArray);
+
+      const setoresParaLimparCache = [...setoresAfetadosArray];
+      setores.forEach((setor) => {
+        if (setor.parent) {
+          setoresParaLimparCache.push(setor.parent);
+        }
+      });
+
+      await CacheService.clearCacheForFuncionarios(setoresParaLimparCache);
     } catch (error) {
       console.error('Erro ao deletar usuários:', error);
       throw error;
