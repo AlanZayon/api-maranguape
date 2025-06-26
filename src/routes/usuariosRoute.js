@@ -38,6 +38,7 @@ router.post('/login', async (req, res) => {
     );
 
     user.lastValidToken = token;
+    user.tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await user.save();
 
     res.cookie('authToken', token, {

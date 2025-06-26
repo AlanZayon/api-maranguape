@@ -6,6 +6,7 @@ const compression = require('compression');
 const cors = require('cors');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
+require('./scripts/validationToken')
 const rateLimit = require('express-rate-limit');
 const usuarioRoute = require('./routes/usuariosRoute');
 const setoresRoutes = require('./routes/setoresRoutes');

@@ -9,7 +9,8 @@ const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   passwordHash: { type: String, required: true },
   role: { type: String, enum: ['admin', 'user'], default: 'user' },
-  lastValidToken: { type: String, default: null },
+  lastValidToken: { type: String, default: null }, 
+  tokenExpiresAt: { type: Date, default: null }
 });
 
 // Método para comparar senhas
