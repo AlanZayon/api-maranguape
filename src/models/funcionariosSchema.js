@@ -9,9 +9,9 @@ const funcionarioSchema = new mongoose.Schema({
   foto: { type: String, default: null },
   secretaria: { type: String, required: true },
   funcao: { type: String, required: true },
-  tipo: { type: String, required: true },
+  tipo: { type: String },
   natureza: { type: String, required: true },
-  referencia: { type: String, required: true },
+  referencia: { type: String},
   redesSociais: [
     {
       link: { type: String },
@@ -31,6 +31,8 @@ const funcionarioSchema = new mongoose.Schema({
     ref: 'Coordenadoria',
     required: true,
   },
+  inicioContrato: {type: Date},
+  fimContrato: {type: Date},
   createdAt: { type: Date, default: Date.now },
 });
 

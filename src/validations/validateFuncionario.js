@@ -29,9 +29,9 @@ const funcionarioJoiSchema = Joi.object({
     .allow(null),
   secretaria: normalizar().required(),
   funcao: normalizar().required(),
-  tipo: normalizar().required(),
+  tipo: normalizar().optional().allow(''),
   natureza: normalizar().required(),
-  referencia: normalizar().required(),
+  referencia: normalizar().optional().allow(''),
   redesSociais: Joi.array()
     .items(
       Joi.object({
@@ -53,6 +53,8 @@ const funcionarioJoiSchema = Joi.object({
     .optional()
     .allow(null),
   coordenadoria: normalizar().required(),
+  inicioContrato: Joi.date().optional(),
+  fimContrato: Joi.date().optional(),
   createdAt: Joi.date().default(() => new Date()),
 });
 

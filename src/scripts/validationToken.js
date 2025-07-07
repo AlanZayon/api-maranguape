@@ -4,7 +4,7 @@ const User = require('../models/usuariosSchema');
 async function checkExpiredTokens() {
  console.log(`[${new Date().toISOString()}] Verificando tokens expirados...`);
 
-  const expirationDate = new Date(Date.now() - 24 * 60 * 60 * 1000); // Agora - 24h
+  const expirationDate = new Date();
 
   try {
     const result = await User.updateMany(
