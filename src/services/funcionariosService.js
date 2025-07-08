@@ -359,6 +359,38 @@ class FuncionarioService {
       statusCode: 200,
     };
   }
+
+  static async hasFuncionarios(entityId) {
+    const entity = await SetorRepository.findById(entityId);
+    if (!entity) {
+      throw new Error('Entidade não encontrada');
+    }
+
+    if (entity.tipo === 'Coordenadoria') {
+      const count = await FuncionarioRepository.countFuncionariosInCoordenadoria(entityId);
+      return count > 0;
+    } else {
+      const coordenadoriasIds = await this.getCoordenadoriasIdsRecursive(entityId);
+      const count = await FuncionarioRepository.countFuncionariosInCoordenadorias(coordenadoriasIds);
+      return count > 0;
+    }
+  }
+
+  static async getCoordenadoriasIdsRecursive(parentId) {
+    const children = await SetorRepository.findSetorData(parentId);
+    let coordenadoriasIds = [];
+
+    for (const child of children) {
+      if (child.tipo === 'Coordenadoria') {
+        coordenadoriasIds.push(child._id);
+      } else {
+        const subCoordenadorias = await this.getCoordenadoriasIdsRecursive(child._id);
+        coordenadoriasIds = [...coordenadoriasIds, ...subCoordenadorias];
+      }
+    }
+
+    return coordenadoriasIds;
+  }
 }
 
 const normalizarTexto = (valor) => {

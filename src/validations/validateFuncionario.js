@@ -53,8 +53,8 @@ const funcionarioJoiSchema = Joi.object({
     .optional()
     .allow(null),
   coordenadoria: normalizar().required(),
-  inicioContrato: Joi.date().optional(),
-  fimContrato: Joi.date().optional(),
+  inicioContrato: Joi.date().optional().allow(''),
+  fimContrato: Joi.date().optional().allow(''),
   createdAt: Joi.date().default(() => new Date()),
 });
 

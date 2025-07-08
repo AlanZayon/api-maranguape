@@ -152,6 +152,22 @@ class FuncionarioController {
       });
     }
   }
+
+  static async checkHasFuncionarios(req, res) {
+    try {
+      const entityId = req.params.id;
+      const hasEmployees = await FuncionarioService.hasFuncionarios(entityId);
+      res.json({ hasEmployees });
+    } catch (error) {
+      console.error('Erro ao verificar funcionários:', error);
+
+      if (error.message === 'Entidade não encontrada') {
+        return res.status(404).json({ error: error.message });
+      }
+
+      res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  }
 }
 
 module.exports = FuncionarioController;

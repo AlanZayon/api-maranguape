@@ -142,6 +142,18 @@ class FuncionarioRepository {
       { $group: { _id: '$referencia', total: { $sum: 1 } } },
     ]);
   }
+
+  static async countFuncionariosInCoordenadorias(coordenadoriaIds) {
+    return await Funcionario.countDocuments({
+      coordenadoria: { $in: coordenadoriaIds }
+    });
+  }
+
+  static async countFuncionariosInCoordenadoria(coordenadoriaId) {
+    return await Funcionario.countDocuments({
+      coordenadoria: coordenadoriaId
+    });
+  }
 }
 
 module.exports = FuncionarioRepository;

@@ -6,6 +6,10 @@ class SetorRepository {
     return await Setor.find();
   }
 
+  static async findById(id) {
+    return await Setor.findById(id);
+  }
+
   static async create(data) {
     return await new Setor(data).save();
   }

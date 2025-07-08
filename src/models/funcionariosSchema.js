@@ -31,8 +31,8 @@ const funcionarioSchema = new mongoose.Schema({
     ref: 'Coordenadoria',
     required: true,
   },
-  inicioContrato: {type: Date},
-  fimContrato: {type: Date},
+  inicioContrato: {type: Date, default: null},
+  fimContrato: {type: Date, default: null},
   createdAt: { type: Date, default: Date.now },
 });
 

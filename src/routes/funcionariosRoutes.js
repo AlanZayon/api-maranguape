@@ -43,4 +43,6 @@ router.get('/buscarCargos', FuncionarioController.buscarCargos);
 
 router.get('/check-name', FuncionarioController.checkName);
 
+router.get('/:id/has-funcionarios', FuncionarioController.checkHasFuncionarios);
+
 module.exports = router;
