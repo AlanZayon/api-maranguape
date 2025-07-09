@@ -29,7 +29,6 @@ router.get('/autocomplete', async (req, res) => {
             should: [
               { autocomplete: { query: termo, path: 'nome' } },
               { autocomplete: { query: termo, path: 'funcao' } },
-              { autocomplete: { query: termo, path: 'secretaria' } },
               { autocomplete: { query: termo, path: 'bairro' } },
               { autocomplete: { query: termo, path: 'cidade' } },
               { autocomplete: { query: termo, path: 'natureza' } },
@@ -45,7 +44,7 @@ router.get('/autocomplete', async (req, res) => {
           termo: {
             $cond: [
               { $regexMatch: { input: '$nome', regex: termo, options: 'i' } },
-              '$nome',
+              { nome: '$nome', tipo: 'Funcionário' },
               {
                 $cond: [
                   {
@@ -55,60 +54,48 @@ router.get('/autocomplete', async (req, res) => {
                       options: 'i',
                     },
                   },
-                  '$funcao',
+                  { nome: '$funcao', tipo: 'Função' },
                   {
                     $cond: [
                       {
                         $regexMatch: {
-                          input: '$secretaria',
+                          input: '$bairro',
                           regex: termo,
                           options: 'i',
                         },
                       },
-                      '$secretaria',
+                      { nome: '$bairro', tipo: 'Bairro' },
                       {
                         $cond: [
                           {
                             $regexMatch: {
-                              input: '$bairro',
+                              input: '$cidade',
                               regex: termo,
                               options: 'i',
                             },
                           },
-                          '$bairro',
+                          { nome: '$cidade', tipo: 'Cidade' },
                           {
                             $cond: [
                               {
                                 $regexMatch: {
-                                  input: '$cidade',
+                                  input: '$natureza',
                                   regex: termo,
                                   options: 'i',
                                 },
                               },
-                              '$cidade',
+                              { nome: '$natureza', tipo: 'Natureza' },
                               {
                                 $cond: [
                                   {
                                     $regexMatch: {
-                                      input: '$natureza',
+                                      input: '$tipo',
                                       regex: termo,
                                       options: 'i',
                                     },
                                   },
-                                  '$natureza',
-                                  {
-                                    $cond: [
-                                      {
-                                        $regexMatch: {
-                                          input: '$tipo',
-                                          regex: termo,
-                                          options: 'i',
-                                        },
-                                      },
-                                      '$tipo',
-                                      '$referencia',
-                                    ],
-                                  },
+                                  { nome: '$tipo', tipo: 'Tipo' },
+                                  { nome: '$referencia', tipo: 'Referência' },
                                 ],
                               },
                             ],
@@ -137,13 +124,23 @@ router.get('/autocomplete', async (req, res) => {
       { $limit: 10 },
       {
         $project: {
-          termo: '$nome',
+          termo: {
+            nome: '$nome',
+            tipo: '$tipo' // Inclui o tipo do setor (Setor, Subsetor, Coordenadoria)
+          },
         },
       },
     ]);
 
-    const todosTermos = [...funcionarios, ...setores].map((x) => x.termo);
-    const unicos = [...new Set(todosTermos)];
+    // Combina os resultados mantendo a estrutura de nome e tipo
+    const todosTermos = [...funcionarios.map(x => x.termo), ...setores.map(x => x.termo)];
+    
+    // Remove duplicados considerando nome E tipo
+    const unicos = todosTermos.filter((item, index, self) =>
+      index === self.findIndex((t) => (
+        t.nome === item.nome && t.tipo === item.tipo
+      ))
+    );
 
     res.json(unicos);
   } catch (err) {
@@ -162,22 +159,33 @@ router.get('/search-funcionarios', async (req, res) => {
   try {
     const setoresEncontrados = await Setor.find(
       { $text: { $search: q } },
-      { score: { $meta: "textScore" }, tipo: 1 }
+      { score: { $meta: "textScore" }, tipo: 1, nome: 1 }
     )
       .sort({ score: { $meta: "textScore" } })
       .limit(5)
-      .select('_id tipo');
+      .select('_id tipo nome');
 
     let funcionariosIds = [];
+    let setoresInfo = [];
 
     for (const setor of setoresEncontrados) {
       if (setor.tipo === 'Coordenadoria') {
         const funcs = await Funcionario.find({ coordenadoria: setor._id }).select('_id');
         funcionariosIds = [...funcionariosIds, ...funcs.map(f => f._id)];
+        setoresInfo.push({
+          id: setor._id,
+          nome: setor.nome,
+          tipo: setor.tipo
+        });
       } else {
         const allChildIds = await findChildIds(setor._id);
         const funcs = await Funcionario.find({ coordenadoria: { $in: allChildIds } }).select('_id');
         funcionariosIds = [...funcionariosIds, ...funcs.map(f => f._id)];
+        setoresInfo.push({
+          id: setor._id,
+          nome: setor.nome,
+          tipo: setor.tipo
+        });
       }
     }
 
@@ -194,7 +202,6 @@ router.get('/search-funcionarios', async (req, res) => {
               'natureza',
               'nome',
               'referencia',
-              'secretaria',
               'tipo',
             ],
           },
@@ -217,7 +224,11 @@ router.get('/search-funcionarios', async (req, res) => {
 
     const resultados = await Funcionario.find({ _id: { $in: idsUnicos } }).limit(20);
 
-    res.json(resultados);
+    // Adiciona informações dos setores encontrados na resposta
+    res.json({
+      funcionarios: resultados,
+      setoresEncontrados: setoresInfo
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erro ao buscar os dados.' });
