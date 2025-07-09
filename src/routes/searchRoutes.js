@@ -2,6 +2,19 @@ const express = require('express');
 const router = express.Router();
 const Funcionario = require('../models/funcionariosSchema');
 const Setor = require('../models/setoresSchema');
+const { ObjectId } = require('mongodb');
+
+async function findChildIds(parentId) {
+  const children = await Setor.find({ parent: parentId });
+  let ids = [parentId];
+
+  for (const child of children) {
+    const childIds = await findChildIds(child._id);
+    ids = [...ids, ...childIds];
+  }
+
+  return ids;
+}
 
 router.get('/autocomplete', async (req, res) => {
   const termo = req.query.q;
@@ -129,7 +142,6 @@ router.get('/autocomplete', async (req, res) => {
       },
     ]);
 
-    // Juntar os termos únicos
     const todosTermos = [...funcionarios, ...setores].map((x) => x.termo);
     const unicos = [...new Set(todosTermos)];
 
@@ -144,13 +156,32 @@ router.get('/search-funcionarios', async (req, res) => {
   const { q } = req.query;
 
   if (!q) {
-    return res
-      .status(400)
-      .json({ error: 'Parâmetro de busca "q" é obrigatório.' });
+    return res.status(400).json({ error: 'Parâmetro de busca "q" é obrigatório.' });
   }
 
   try {
-    const results = await Funcionario.aggregate([
+    const setoresEncontrados = await Setor.find(
+      { $text: { $search: q } },
+      { score: { $meta: "textScore" }, tipo: 1 }
+    )
+      .sort({ score: { $meta: "textScore" } })
+      .limit(5)
+      .select('_id tipo');
+
+    let funcionariosIds = [];
+
+    for (const setor of setoresEncontrados) {
+      if (setor.tipo === 'Coordenadoria') {
+        const funcs = await Funcionario.find({ coordenadoria: setor._id }).select('_id');
+        funcionariosIds = [...funcionariosIds, ...funcs.map(f => f._id)];
+      } else {
+        const allChildIds = await findChildIds(setor._id);
+        const funcs = await Funcionario.find({ coordenadoria: { $in: allChildIds } }).select('_id');
+        funcionariosIds = [...funcionariosIds, ...funcs.map(f => f._id)];
+      }
+    }
+
+    const funcionariosDiretos = await Funcionario.aggregate([
       {
         $search: {
           index: 'busca_geral_funcionarios',
@@ -170,9 +201,23 @@ router.get('/search-funcionarios', async (req, res) => {
         },
       },
       { $limit: 20 },
+      {
+        $project: {
+          _id: 1
+        }
+      }
     ]);
 
-    res.json(results);
+    const todosIds = [
+      ...funcionariosIds,
+      ...funcionariosDiretos.map(f => f._id)
+    ];
+
+    const idsUnicos = [...new Set(todosIds.map(id => id.toString()))].map(id => new ObjectId(id));
+
+    const resultados = await Funcionario.find({ _id: { $in: idsUnicos } }).limit(20);
+
+    res.json(resultados);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erro ao buscar os dados.' });

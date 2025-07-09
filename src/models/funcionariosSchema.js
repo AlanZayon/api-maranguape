@@ -32,7 +32,18 @@ const funcionarioSchema = new mongoose.Schema({
     required: true,
   },
   inicioContrato: {type: Date, default: null},
-  fimContrato: {type: Date, default: null},
+    fimContrato: { 
+    type: mongoose.Schema.Types.Mixed, 
+    default: null,
+    validate: {
+      validator: function(value) {
+        return value === null || 
+               value instanceof Date || 
+               value === 'indeterminado';
+      },
+      message: 'fimContrato deve ser uma data válida ou "indeterminado"'
+    }
+  },
   createdAt: { type: Date, default: Date.now },
 });
 
