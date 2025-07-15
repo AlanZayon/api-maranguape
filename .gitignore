@@ -25,3 +25,5 @@ dist/
 *.bak
 
 gerar-dados.js
+
+coverage/
