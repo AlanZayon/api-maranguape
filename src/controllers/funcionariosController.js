@@ -44,6 +44,28 @@ class FuncionarioController {
     }
   }
 
+  static async buscarFuncionariosPorDivisoes(req, res) {
+    const { ids, page, limit } = req.query;
+
+    const idsArray = Array.isArray(ids)
+      ? ids
+      : typeof ids === 'string'
+        ? ids.split(",").filter(id => id.length > 0)
+        : [];
+
+    const pageNumber = parseInt(page) || 1;
+    const limitNumber = parseInt(limit) || 100;
+    try {
+      const funcionarios =
+        await FuncionarioService.buscarFuncionariosPorDivisoes(idsArray, pageNumber, limitNumber);
+
+      res.json(funcionarios);
+    } catch (err) {
+      console.error('Erro ao buscar funcionários:', err);
+      res.status(500).send('Erro ao buscar funcionários');
+    }
+  }
+
   static async createFuncionario(req, res) {
     try {
       const funcionario = await FuncionarioService.createFuncionario(req);

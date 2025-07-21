@@ -1,4 +1,5 @@
 const SetorRepository = require('../repositories/SetorRepository');
+const FuncionarioRepository = require('../repositories/FuncionariosRepository');
 const CacheService = require('../services/CacheService');
 const organizarSetores = require('../utils/organizarSetores');
 
@@ -10,13 +11,17 @@ class SetorService {
     return setor;
   }
 
-  static async getSetoresOrganizados() {
-    return await CacheService.getOrSetCache('setoresOrganizados', async () => {
-      const setores = await SetorRepository.getAllSetores();
-      const setoresOrganizados = organizarSetores(setores);
-      return setoresOrganizados;
-    });
-  }
+static async getSetoresOrganizados() {
+  return await CacheService.getOrSetCache('setoresOrganizados', async () => {
+    const [setores, funcionariosPorSetor] = await Promise.all([
+      SetorRepository.getAllSetores(),
+      FuncionarioRepository.countFuncionariosPorSetor() 
+    ]);
+    
+    const setoresOrganizados = organizarSetores(setores, funcionariosPorSetor);
+    return setoresOrganizados;
+  });
+}
 
   static async getMainSetores() {
     return await CacheService.getOrSetCache('setores:null', async () => {

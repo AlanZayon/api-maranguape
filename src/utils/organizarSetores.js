@@ -1,14 +1,17 @@
-const organizarSetores = (setores, parentId = null) => {
+const organizarSetores = (setores, funcionariosPorSetor, parentId = null) => {
   return setores
     .filter((setor) => String(setor.parent) === String(parentId))
     .map((setor) => ({
       ...setor.toObject(),
-      subsetores: organizarSetores(setores, setor._id).filter(
+      subsetores: organizarSetores(setores, funcionariosPorSetor, setor._id).filter(
         (s) => s.tipo === 'Subsetor'
       ),
-      coordenadorias: organizarSetores(setores, setor._id).filter(
-        (s) => s.tipo === 'Coordenadoria'
-      ),
+      coordenadorias: organizarSetores(setores, funcionariosPorSetor, setor._id)
+        .filter((s) => s.tipo === 'Coordenadoria')
+        .map(coordenadoria => ({
+          ...coordenadoria,
+          quantidadeFuncionarios: funcionariosPorSetor[coordenadoria._id] || 0
+        }))
     }));
 };
 

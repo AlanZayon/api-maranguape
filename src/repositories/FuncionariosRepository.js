@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Funcionario = require('../models/funcionariosSchema');
 const Setores = require('../models/setoresSchema');
 
@@ -24,10 +25,12 @@ class FuncionarioRepository {
     }).lean();
   }
 
-  static async countBySetor(idSetor) {
+  static async countBySetor(idsSetores) {
+    const idsArray = Array.isArray(idsSetores) ? idsSetores : [idsSetores];
+
     const result = await Setores.aggregate([
       {
-        $match: { _id: idSetor },
+        $match: { _id: idsArray },
       },
       {
         $graphLookup: {
@@ -153,6 +156,27 @@ class FuncionarioRepository {
     return await Funcionario.countDocuments({
       coordenadoria: coordenadoriaId
     });
+  }
+
+  static async countFuncionariosPorSetor() {
+    const result = await Funcionario.aggregate([
+      { $group: { _id: "$coordenadoria", total: { $sum: 1 } } }
+    ]);
+
+    return result.reduce((acc, { _id, total }) => {
+      acc[_id] = total;
+      return acc;
+    }, {});
+  }
+
+  static findByDivisoes(idsDivisoes, skip, limit) {
+    const objectIdArray = idsDivisoes.map(id => new mongoose.Types.ObjectId(id));
+
+    return Funcionario.aggregate([
+      { $match: { coordenadoria: { $in: objectIdArray } } },
+      { $skip: skip },
+      { $limit: limit },
+    ]);
   }
 }
 

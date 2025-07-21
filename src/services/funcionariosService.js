@@ -110,6 +110,35 @@ class FuncionarioService {
     );
   }
 
+static async buscarFuncionariosPorDivisoes(idsDivisoes, page = 1, limit = 100) {
+  return CacheService.getOrSetCache(
+    `divisoes:${idsDivisoes.join('-')}:page${page}`,
+    async () => {
+      const skip = (page - 1) * limit;
+      
+      const [total, funcionarios] = await Promise.all([
+        FuncionarioRepository.countBySetor(idsDivisoes),
+        FuncionarioRepository.findByDivisoes(idsDivisoes, skip, limit)
+      ]);
+
+      const funcionariosComUrls = await Promise.all(
+        funcionarios.map(async (f) => ({
+          ...f,
+          fotoUrl: f.foto ? await awsUtils.gerarUrlPreAssinada(f.foto) : null,
+          arquivoUrl: f.arquivo ? await awsUtils.gerarUrlPreAssinada(f.arquivo) : null
+        }))
+      );
+
+      return {
+        funcionarios: funcionariosComUrls,
+        total,
+        page,
+        pages: Math.ceil(total / limit)
+      };
+    }
+  );
+}
+
   static async createFuncionario(req) {
     const fotoUrlAWS = req.files?.foto
       ? await awsUtils.uploadFile(req.files.foto[0], 'fotos')

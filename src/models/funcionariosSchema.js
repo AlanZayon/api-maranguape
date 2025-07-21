@@ -11,7 +11,7 @@ const funcionarioSchema = new mongoose.Schema({
   funcao: { type: String, required: true },
   tipo: { type: String },
   natureza: { type: String, required: true },
-  referencia: { type: String},
+  referencia: { type: String },
   redesSociais: [
     {
       link: { type: String },
@@ -31,15 +31,18 @@ const funcionarioSchema = new mongoose.Schema({
     ref: 'Coordenadoria',
     required: true,
   },
-  inicioContrato: {type: Date, default: null},
-    fimContrato: { 
-    type: mongoose.Schema.Types.Mixed, 
+  inicioContrato: { type: Date, default: null },
+  fimContrato: {
+    type: mongoose.Schema.Types.Mixed,
     default: null,
+    set: function (value) {
+      return value === '' ? null : value;
+    },
     validate: {
-      validator: function(value) {
-        return value === null || 
-               value instanceof Date || 
-               value === 'indeterminado';
+      validator: function (value) {
+        return value === null ||
+          value instanceof Date ||
+          value === 'indeterminado';
       },
       message: 'fimContrato deve ser uma data válida ou "indeterminado"'
     }

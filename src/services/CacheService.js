@@ -46,32 +46,62 @@ class CacheService {
     ]);
   }
 
-  static async clearCacheForFuncionarios(...keys) {
-    const flatKeys = keys.flat(Infinity);
-    const uniqueKeys = [...new Set(flatKeys)];
-    for (const key of uniqueKeys) {
-      const setorKeys = await redisClient.keys(
-        `setor:${key}:funcionarios:page:*`
-      );
-      if (setorKeys.length > 0) {
-        await redisClient.del(...setorKeys);
+static async clearCacheForFuncionarios(...keys) {
+  await this.clearCacheForDivisoes(...keys);
+  
+  const flatKeys = keys.flat(Infinity);
+  const uniqueKeys = [...new Set(flatKeys)];
+  
+  const patterns = [
+    'setor:*:funcionarios:*',
+    'coordenadoria:*:funcionarios',
+    'todos:funcionarios:page*',
+    'funcionarios:total',
+    'todos:cargosComissionados'
+  ];
+
+  await Promise.all([
+    ...uniqueKeys.map(id => redisClient.del(`divisoes:${id}:*`)),
+    ...patterns.map(p => redisClient.keys(p).then(keys => 
+      keys.length > 0 ? redisClient.del(...keys) : null
+    ))
+  ]);
+}
+
+  static async clearCacheForDivisoes(...idsDivisoes) {
+  const uniqueIds = [...new Set(idsDivisoes.flat(Infinity))];
+  
+  // Gera TODOS os padrões possíveis que podem conter esses IDs
+  const patternsToClear = [
+    'divisoes:*', // Todas as combinações (incluindo páginas)
+    ...uniqueIds.map(id => `divisoes:*${id}*:*`), // Padrão otimizado para Redis
+    ...uniqueIds.map(id => `*:${id}:*`) // Fallback para outros formatos
+  ];
+
+  // Busca paralela das chaves
+  const keysToDelete = new Set();
+  
+  await Promise.all(
+    patternsToClear.map(async (pattern) => {
+      try {
+        const keys = await redisClient.keys(pattern);
+        keys.forEach(key => {
+          // Filtro adicional para garantir que estamos limpando apenas caches de divisões
+          if (key.includes('divisoes:') && key.includes(':page')) {
+            keysToDelete.add(key);
+          }
+        });
+      } catch (error) {
+        console.error(`Erro ao buscar chaves com padrão ${pattern}:`, error);
       }
+    })
+  );
 
-      const coordenadoriaKey = `coordenadoria:${key}:funcionarios`;
-      await redisClient.del(coordenadoriaKey);
-    }
-
-    const todosFuncionariosKeys = await redisClient.keys(
-      'todos:funcionarios:page*'
-    );
-    if (todosFuncionariosKeys.length > 0) {
-      await redisClient.del(...todosFuncionariosKeys);
-    }
-
-    await redisClient.del('funcionarios:total');
-
-    await redisClient.del('todos:cargosComissionados');
+  if (keysToDelete.size > 0) {
+    await redisClient.del(...Array.from(keysToDelete));
+    console.log(`[CACHE] Limpas ${keysToDelete.size} chaves:`, Array.from(keysToDelete));
   }
+}
 
   static async clearCacheForCoordChange(
     oldCoordIds,
