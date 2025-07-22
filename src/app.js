@@ -8,10 +8,10 @@ const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 require('./scripts/validationToken')
 const rateLimit = require('express-rate-limit');
-const usuarioRoute = require('./routes/usuariosRoute');
+const usuarioRoute = require('./routes/authRoutes');
 const setoresRoutes = require('./routes/setoresRoutes');
 const funcionariosRoutes = require('./routes/funcionariosRoutes');
-const referenciasRoutes = require('./routes/referenciasRoutes');
+const referenciasRoutes = require('./routes/referencesRoutes');
 const searchRoutes = require('./routes/searchRoutes');
 
 const app = express();
