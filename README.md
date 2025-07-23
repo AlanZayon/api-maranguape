@@ -3,6 +3,8 @@
 
 Esta API fornece endpoints para gerenciamento completo de funcionários, setores, autenticação e geração de relatórios para a Prefeitura Municipal.
 
+site para experimentar: https://interface-sistema-maranguape.vercel.app/
+
 ## 📋 Requisitos
 
 - Node.js 16+
