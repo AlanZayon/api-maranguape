@@ -45,7 +45,8 @@ class FuncionarioController {
   }
 
   static async buscarFuncionariosPorDivisoes(req, res) {
-    const { ids, page, limit } = req.query;
+    const { ids, page, limit } = req.body;
+
 
     const idsArray = Array.isArray(ids)
       ? ids
@@ -58,6 +59,7 @@ class FuncionarioController {
     try {
       const funcionarios =
         await FuncionarioService.buscarFuncionariosPorDivisoes(idsArray, pageNumber, limitNumber);
+
 
       res.json(funcionarios);
     } catch (err) {
