@@ -1,4 +1,5 @@
 const SearchRepository = require('../repositories/searchRepository');
+const { ObjectId } = require('mongodb'); 
 
 class SearchService {
   static async autocomplete(termo) {
@@ -9,10 +10,8 @@ class SearchService {
     const funcionarios = await SearchRepository.autocompleteFuncionarios(termo);
     const setores = await SearchRepository.autocompleteSetores(termo);
 
-    // Combina os resultados mantendo a estrutura de nome e tipo
     const todosTermos = [...funcionarios.map(x => x.termo), ...setores.map(x => x.termo)];
     
-    // Remove duplicados considerando nome E tipo
     const unicos = todosTermos.filter((item, index, self) =>
       index === self.findIndex((t) => (
         t.nome === item.nome && t.tipo === item.tipo
