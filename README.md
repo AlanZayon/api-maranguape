@@ -5,6 +5,8 @@ Esta API fornece endpoints para gerenciamento completo de funcionários, setores
 
 site para experimentar: https://interface-sistema-maranguape.vercel.app/
 
+acesse o login usando ID:0006  senha:Pref@2024
+
 ## 📋 Requisitos
 
 - Node.js 16+
