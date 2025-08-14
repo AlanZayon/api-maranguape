@@ -1,8 +1,14 @@
+// Data-access layer for search queries against MongoDB models.
 const Funcionario = require('../models/funcionariosSchema');
 const Setor = require('../models/setoresSchema');
 const { ObjectId } = require('mongodb');
 
 class SearchRepository {
+  /**
+   * Recursively collect a setor's id and all descendant setor ids.
+   * @param {ObjectId|string} parentId The parent setor id.
+   * @returns {Promise<Array<ObjectId>>} List including parentId and all descendants.
+   */
   static async findChildIds(parentId) {
     const children = await Setor.find({ parent: parentId });
     let ids = [parentId];
@@ -15,6 +21,11 @@ class SearchRepository {
     return ids;
   }
 
+  /**
+   * Suggest funcionario-related terms from multiple fields using Atlas Search autocomplete.
+   * @param {string} termo The input text to complete.
+   * @returns {Promise<Array<{ termo: { nome: string, tipo: string } }>>}
+   */
   static async autocompleteFuncionarios(termo) {
     return await Funcionario.aggregate([
       {
@@ -108,6 +119,11 @@ class SearchRepository {
     ]);
   }
 
+  /**
+   * Suggest setor names using Atlas Search autocomplete.
+   * @param {string} termo The input text to complete.
+   * @returns {Promise<Array<{ termo: { nome: string, tipo: string } }>>}
+   */
   static async autocompleteSetores(termo) {
     return await Setor.aggregate([
       {
@@ -130,6 +146,12 @@ class SearchRepository {
     ]);
   }
 
+  /**
+   * Full-text search for setores using MongoDB text indexes.
+   * Sorted by relevance and limited to top 5 basic fields.
+   * @param {string} q The search query.
+   * @returns {Promise<Array<{ _id: ObjectId, tipo: string, nome: string }>>}
+   */
   static async searchSetores(q) {
     return await Setor.find(
       { $text: { $search: q } },
@@ -140,10 +162,22 @@ class SearchRepository {
       .select('_id tipo nome');
   }
 
+  /**
+   * Find funcionarios IDs under a specific coordenadoria or a set of coordenadorias.
+   * Accepts an ObjectId or a MongoDB $in query shape.
+   * @param {ObjectId|{ $in: Array<ObjectId> }} coordenadoriaId Id or filter for coordenadoria(s).
+   * @returns {Promise<Array<{ _id: ObjectId }>>}
+   */
   static async findFuncionariosByCoordenadoria(coordenadoriaId) {
     return await Funcionario.find({ coordenadoria: coordenadoriaId }).select('_id');
   }
 
+  /**
+   * Text search for funcionarios across multiple fields using Atlas Search.
+   * Returns only _id to keep payload small for later expansion.
+   * @param {string} q The search query.
+   * @returns {Promise<Array<{ _id: ObjectId }>>}
+   */
   static async searchFuncionariosDirectly(q) {
     return await Funcionario.aggregate([
       {
@@ -172,6 +206,11 @@ class SearchRepository {
     ]);
   }
 
+  /**
+   * Fetch funcionarios documents by a list of ids with a sane default limit.
+   * @param {Array<ObjectId>} ids Unique funcionario ids.
+   * @returns {Promise<Array<object>>}
+   */
   static async getFuncionariosByIds(ids) {
     return await Funcionario.find({ _id: { $in: ids } }).limit(20);
   }
