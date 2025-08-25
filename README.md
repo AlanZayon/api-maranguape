@@ -1,9 +1,12 @@
 # Sistema de Gestão de Funcionários — API
 
-API REST para gerenciamento de funcionários, setores, autenticação, busca/autocomplete e geração de relatórios da Prefeitura Municipal de Maranguape.
+API REST para gerenciamento de funcionários, setores, autenticação, busca/autocomplete e geração de relatórios de Prefeituras Municipais.
 
 Interface web (demo): https://interface-sistema-maranguape.vercel.app/
 
+Acesso para teste:
+- ID:0006
+- Senha:Pref@2024
 
 ## Sumário
 - Visão Geral
