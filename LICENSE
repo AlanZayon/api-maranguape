@@ -31,7 +31,7 @@ atingir isso é torná-lo software livre, o que qualquer pessoa pode redistribui
 
 Para fazê-lo, anexe os seguintes avisos ao programa. É mais seguro anexá-los ao início de cada arquivo-fonte para
 indicar mais claramente que a exclusividade não se aplica a esse arquivo em particular. Pelo menos, adicione a
-linha de aviso “Copyright (C) 2025 SEU_NOME”.
+linha de aviso “Copyright (C) 2025 Alan Zayon”.
 
     Este programa é software livre: você pode redistribuí-lo e/ou modificá-lo
     sob os termos da Licença Pública Geral Affero GNU conforme publicada pela
