@@ -311,4 +311,4 @@ npm run lint   # Correção automática quando possível
 
 
 ## Licença
-Este projeto está licenciado sob a licença MIT. Consulte o arquivo [LICENSE](./LICENSE).
+Este projeto está licenciado sob a licença AGPL-3.0. Consulte o arquivo [LICENSE](./LICENSE).
