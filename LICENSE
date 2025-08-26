@@ -1,21 +1,51 @@
-MIT License
+GNU AFFERO GENERAL PUBLIC LICENSE
+Versão 3, 19 de novembro de 2007
 
-Copyright (c) 2025
+Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
+Todos têm permissão para copiar e distribuir cópias literais deste documento de licença, mas alterar não é permitido.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+=====================================================================
+PREÂMBULO
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+A GNU Affero General Public License é uma licença de software livre, copyleft, para software e outros tipos de trabalhos,
+projetada especificamente para garantir a cooperação com a comunidade no caso de uso de software em servidores de rede.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+[... texto integral disponível em https://www.gnu.org/licenses/agpl-3.0.pt-br.html ...]
+
+=====================================================================
+TERMOS E CONDIÇÕES
+
+0. Definições.
+
+[Texto oficial completo deve ser mantido. Este arquivo é uma reprodução resumida, 
+o texto integral pode ser consultado no link oficial.]
+
+=====================================================================
+FIM DOS TERMOS E CONDIÇÕES
+
+Como aplicar estes termos a seus novos programas:
+-------------------------------------------------
+
+Se você desenvolver um novo programa, e quiser que ele seja de máximo uso possível ao público, a melhor forma de
+atingir isso é torná-lo software livre, o que qualquer pessoa pode redistribuir e alterar sob estes termos.
+
+Para fazê-lo, anexe os seguintes avisos ao programa. É mais seguro anexá-los ao início de cada arquivo-fonte para
+indicar mais claramente que a exclusividade não se aplica a esse arquivo em particular. Pelo menos, adicione a
+linha de aviso “Copyright (C) 2025 SEU_NOME”.
+
+    Este programa é software livre: você pode redistribuí-lo e/ou modificá-lo
+    sob os termos da Licença Pública Geral Affero GNU conforme publicada pela
+    Free Software Foundation, tanto a versão 3 da Licença, como (a seu critério)
+    qualquer versão posterior.
+
+    Este programa é distribuído na esperança de que seja útil,
+    mas SEM NENHUMA GARANTIA; sem mesmo a garantia implícita de
+    COMERCIALIZAÇÃO ou ADEQUAÇÃO A UM PROPÓSITO EM PARTICULAR.
+    Consulte a Licença Pública Geral Affero GNU para mais detalhes.
+
+    Você deve ter recebido uma cópia da Licença Pública Geral Affero GNU
+    junto com este programa. Se não, veja <https://www.gnu.org/licenses/>.
+
+=====================================================================
+Nota: Para validade legal, recomenda-se sempre incluir o texto completo da AGPL-3.0, disponível no site oficial:
+https://www.gnu.org/licenses/agpl-3.0.pt-br.html
