@@ -95,6 +95,9 @@ class FuncionarioController {
       );
       res.status(response.status).json(response.data);
     } catch (error) {
+      if (error.message === 'Funcionário não encontrado') {
+        return res.status(404).json({ error: error.message });
+      }
       Logger.error('Erro ao atualizar funcionário', error);
       res.status(500).json({ error: 'Erro ao atualizar funcionário' });
     }

@@ -21,6 +21,7 @@ const allowedOrigins = [
   'https://interface-sistema-maranguape.vercel.app',
   'http://localhost:5174',
   'http://localhost:5173',
+  'http://localhost:4200',
 ];
 
 const corsOptions = {

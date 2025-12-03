@@ -198,62 +198,65 @@ static async buscarFuncionariosPorDivisoes(idsDivisoes, page = 1, limit = 100) {
     };
   }
 
-  static async execute(params, body, files) {
-    const { id } = params;
+ static async execute(params, body, files) {
+  const { id } = params;
 
-    const funcionarioExistente = await FuncionarioRepository.findByIds(id);
-    if (!funcionarioExistente)
-      return { status: 404, data: { error: 'Funcionário não encontrado' } };
-
-    const novaFuncao = body.funcao;
-    const novaNatureza = body.natureza;
-    const antigaFuncao = funcionarioExistente[0]?.funcao;
-    const antigaNatureza = funcionarioExistente[0]?.natureza;
-
-    if (novaFuncao !== antigaFuncao) {
-      await LimiteService.atualizarLimitesDeFuncao(
-        antigaFuncao,
-        novaFuncao,
-        antigaNatureza,
-        novaNatureza
-      );
-    }
-
-    const fotoUrlAWS = files?.foto
-      ? await awsUtils.uploadFile(files.foto[0], 'fotos')
-      : funcionarioExistente.foto;
-    const arquivoUrlAWS = files?.arquivo
-      ? await awsUtils.uploadFile(files.arquivo[0], 'arquivos')
-      : funcionarioExistente.arquivo;
-
-    const funcionarioAtualizado = await FuncionarioRepository.update(id, {
-      ...body,
-      foto: fotoUrlAWS,
-      arquivo: arquivoUrlAWS,
-    });
-
-    const setor = await SetorRepository.findSetorByCoordenadoria([
-      funcionarioAtualizado.coordenadoria,
-    ]);
-
-    await CacheService.clearCacheForFuncionarios(
-      funcionarioAtualizado.coordenadoria,
-      setor[0].parent
-    );
-
-    return {
-      status: 200,
-      data: {
-        ...funcionarioAtualizado.toObject(),
-        fotoUrl: fotoUrlAWS
-          ? await awsUtils.gerarUrlPreAssinada(fotoUrlAWS)
-          : null,
-        arquivoUrl: arquivoUrlAWS
-          ? await awsUtils.gerarUrlPreAssinada(arquivoUrlAWS)
-          : null,
-      },
-    };
+  const funcionarioExistente = await FuncionarioRepository.findByIds(id);
+  if (!funcionarioExistente || funcionarioExistente.length === 0) {
+    throw new Error('Funcionário não encontrado');
   }
+
+  const atual = funcionarioExistente[0];
+
+  const novaFuncao = body.funcao;
+  const novaNatureza = body.natureza;
+
+  if (novaFuncao !== atual.funcao) {
+    await LimiteService.atualizarLimitesDeFuncao(
+      atual.funcao,
+      novaFuncao,
+      atual.natureza,
+      novaNatureza
+    );
+  }
+
+  const fotoUrlAWS = files?.foto
+    ? await awsUtils.uploadFile(files.foto[0], 'fotos')
+    : atual.foto;
+
+  const arquivoUrlAWS = files?.arquivo
+    ? await awsUtils.uploadFile(files.arquivo[0], 'arquivos')
+    : atual.arquivo;
+
+  const funcionarioAtualizado = await FuncionarioRepository.update(id, {
+    ...body,
+    foto: fotoUrlAWS,
+    arquivo: arquivoUrlAWS,
+  });
+
+  const setor = await SetorRepository.findSetorByCoordenadoria([
+    funcionarioAtualizado.coordenadoria,
+  ]);
+
+  await CacheService.clearCacheForFuncionarios(
+    funcionarioAtualizado.coordenadoria,
+    setor[0].parent
+  );
+
+  return {
+    status: 200,
+    data: {
+      ...funcionarioAtualizado.toObject(),
+      fotoUrl: fotoUrlAWS
+        ? await awsUtils.gerarUrlPreAssinada(fotoUrlAWS)
+        : null,
+      arquivoUrl: arquivoUrlAWS
+        ? await awsUtils.gerarUrlPreAssinada(arquivoUrlAWS)
+        : null,
+    },
+  };
+}
+
 
   static async deleteUsers(userIds) {
     try {

@@ -3,7 +3,8 @@
  * Encapsulates business rules on top of repository/data-access queries.
  */
 const SearchRepository = require('../repositories/searchRepository');
-const { ObjectId } = require('mongodb'); 
+const { ObjectId } = require('mongodb');
+const awsUtils = require('../utils/awsUtils');
 
 /**
  * Provides high-level search capabilities used by controllers.
@@ -28,7 +29,7 @@ class SearchService {
     const setores = await SearchRepository.autocompleteSetores(termo);
 
     const todosTermos = [...funcionarios.map(x => x.termo), ...setores.map(x => x.termo)];
-    
+
     // Deduplicate suggestions by (nome, tipo) to avoid repeated terms from different sources
     const unicos = todosTermos.filter((item, index, self) =>
       index === self.findIndex((t) => (
@@ -61,27 +62,21 @@ class SearchService {
     let funcionariosIds = [];
     let setoresInfo = [];
 
-    // Traverse matched setores; if a Coordenadoria, use direct match.
-    // Otherwise, expand to all descendant setores before collecting funcionarios.
     for (const setor of setoresEncontrados) {
       if (setor.tipo === 'Coordenadoria') {
         const funcs = await SearchRepository.findFuncionariosByCoordenadoria(setor._id);
-        funcionariosIds = [...funcionariosIds, ...funcs.map(f => f._id)];
-        setoresInfo.push({
-          id: setor._id,
-          nome: setor.nome,
-          tipo: setor.tipo
-        });
+        funcionariosIds.push(...funcs.map(f => f._id));
       } else {
         const allChildIds = await SearchRepository.findChildIds(setor._id);
         const funcs = await SearchRepository.findFuncionariosByCoordenadoria({ $in: allChildIds });
-        funcionariosIds = [...funcionariosIds, ...funcs.map(f => f._id)];
-        setoresInfo.push({
-          id: setor._id,
-          nome: setor.nome,
-          tipo: setor.tipo
-        });
+        funcionariosIds.push(...funcs.map(f => f._id));
       }
+
+      setoresInfo.push({
+        id: setor._id,
+        nome: setor.nome,
+        tipo: setor.tipo
+      });
     }
 
     const funcionariosDiretos = await SearchRepository.searchFuncionariosDirectly(q);
@@ -91,13 +86,32 @@ class SearchService {
       ...funcionariosDiretos.map(f => f._id)
     ];
 
-    // Normalize ObjectIds to strings for de-duplication, then back to ObjectId
-    const idsUnicos = [...new Set(todosIds.map(id => id.toString()))].map(id => new ObjectId(id));
+    const idsUnicos = [...new Set(todosIds.map(id => id.toString()))]
+      .map(id => new ObjectId(id));
 
     const resultados = await SearchRepository.getFuncionariosByIds(idsUnicos);
 
+    // 🔥 AQUI GERAMOS AS URLs PRE-ASSINADAS
+    const funcionariosComMidias = await Promise.all(
+      resultados.map(async funcionario => {
+        const fotoUrl = funcionario.foto
+          ? await awsUtils.gerarUrlPreAssinada(funcionario.foto)
+          : null;
+
+        const arquivoUrl = funcionario.arquivo
+          ? await awsUtils.gerarUrlPreAssinada(funcionario.arquivo)
+          : null;
+
+        return {
+          ...funcionario.toObject(),
+          fotoUrl,
+          arquivoUrl,
+        };
+      })
+    );
+
     return {
-      funcionarios: resultados,
+      funcionarios: funcionariosComMidias,
       setoresEncontrados: setoresInfo
     };
   }

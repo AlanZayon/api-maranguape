@@ -42,6 +42,8 @@ describe('Rotas de Funcionário', () => {
       .put('/edit-funcionario/999')
       .send({ nome: 'Novo Nome' });
 
+      console.log(res.body);
+
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('Funcionário não encontrado');
   });
