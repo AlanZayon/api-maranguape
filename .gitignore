@@ -2,7 +2,7 @@
 *.log
 
 # Ignorar diretórios de dependências do Node.js
-node_modules/
+node_modules
 
 # Ignorar arquivos de configuração do editor
 .vscode/
