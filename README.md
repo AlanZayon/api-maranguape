@@ -12,7 +12,6 @@ flowchart LR
     Frontend["🌐 Web Interface (Vercel)"]
     API["⚙️ API Node.js (Express)"]
     MongoFunc["🗄️ MongoDB (Employees)"]
-    MongoUsers["🗄️ MongoDB (Users)"]
     Redis["⚡ Redis (Cache)"]
     S3["☁️ AWS S3 (Uploads)"]
     Nginx["🔀 Nginx (Docker)"]
@@ -249,7 +248,6 @@ Example .env (place at project root):
 ```
 # Database
 MONGO_CONNECTING_FUNCIONARIOS=mongodb://localhost:27017/funcionarios
-MONGO_CONNECTING_USUARIOS=mongodb://localhost:27017/usuarios
 
 # Authentication
 JWT_SECRET=your_jwt_secret_key
