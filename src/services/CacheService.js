@@ -1,16 +1,37 @@
 const redisClient = require('../config/redisClient');
 
 class CacheService {
-  static async getOrSetCache(key, fetchFunction) {
-    const cachedData = await redisClient.get(key);
-    if (cachedData) return JSON.parse(cachedData);
-    const freshData = await fetchFunction();
-    if (freshData?.funcionarios?.length) {
-      await redisClient.setex(key, 3600, JSON.stringify(freshData));
-    }
+static async getOrSetCache(key, fetchFunction) {
+  const start = process.hrtime.bigint();
 
-    return freshData;
+  const cachedData = await redisClient.get(key);
+  if (cachedData) {
+    metrics.cacheHits.inc();
+    metrics.cacheLatency
+      .labels("hit")
+      .observe(
+        Number(process.hrtime.bigint() - start) / 1e6
+      );
+
+    return JSON.parse(cachedData);
   }
+
+  metrics.cacheMisses.inc();
+
+  const freshData = await fetchFunction();
+
+  if (freshData?.funcionarios?.length) {
+    await redisClient.setex(key, 3600, JSON.stringify(freshData));
+  }
+
+  metrics.cacheLatency
+    .labels("miss")
+    .observe(
+      Number(process.hrtime.bigint() - start) / 1e6
+    );
+
+  return freshData;
+}
 
   static async clearCacheForSetor(id) {
     const setorKey = `setor:${id}:dados`;

@@ -1,210 +1,286 @@
-# Sistema de Gestão de Funcionários e Orgonogramas — API
+# Employee Management and Organizational Charts System — API
 
-Uma API REST usada para gerenciar funcionários, setores, autenticação (login), busca/autocomplete e geração de relatórios de escopo de Prefeituras Municipais.
+A REST API for managing employees, departments, authentication (login), search/autocomplete, and report generation for Municipal Government scope.
 
-Demonstração da interface web: https://interface-sistema-maranguape.vercel.app/
+Web interface demo: https://interface-sistema-maranguape.vercel.app/
 
+## 📐 1️⃣ System Architecture Diagram (Mermaid)
 
-## TL;DR (para quem não é técnico)
-- O que é: um "motor" de dados que guarda e organiza informações de funcionários e setores.
-- Para que serve: consultar funcionários, organizar setores, fazer buscas e gerar relatórios em PDF.
-- Como ver funcionando agora: acesse a interface web acima e navegue. A API é o que alimenta essa interface.
-- Precisa instalar algo? Não para ver a interface. Para usar a API diretamente (sem a interface), siga a seção "Comece em 5 minutos".
+```mermaid
+flowchart LR
+    User["👤 User"]
+    Frontend["🌐 Web Interface (Vercel)"]
+    API["⚙️ API Node.js (Express)"]
+    MongoFunc["🗄️ MongoDB (Employees)"]
+    MongoUsers["🗄️ MongoDB (Users)"]
+    Redis["⚡ Redis (Cache)"]
+    S3["☁️ AWS S3 (Uploads)"]
+    Nginx["🔀 Nginx (Docker)"]
 
+    User --> Frontend
+    Frontend --> API
+    API --> Redis
+    API --> MongoFunc
+    API --> MongoUsers
+    API --> S3
+    Nginx --> API
+```
 
-## O que você consegue fazer
-- Login seguro (usa cookie protegido) e verificação de sessão.
-- Cadastrar, editar, listar e remover funcionários (com fotos/arquivos opcionais salvos em nuvem).
-- Organizar setores (hierarquia: Setor, Subsetor, Coordenadoria) e ver contagens.
-- Buscar por nome (autocomplete) e por termos (busca textual), tanto em funcionários quanto em setores.
-- Gerar relatórios em PDF (por salário, por referências, por localidade e geral).
-- Desempenho com cache (carrega dados mais rápido) e paginação nas listas.
+## TL;DR (For Non-Technical Users)
+- **What it is**: A data engine that stores and organizes employee and department information.
+- **Purpose**: Query employees, organize departments, perform searches, and generate PDF reports.
+- **How to see it working now**: Access the web interface above and navigate. The API powers this interface.
+- **Need to install anything?** Not for the interface. To use the API directly (without the interface), follow the "Get Started in 5 Minutes" section.
 
+## What You Can Do
+- Secure login (using protected cookies) and session verification.
+- Create, edit, list, and delete employees (with optional photos/files stored in the cloud).
+- Organize departments (hierarchy: Sector, Sub-sector, Coordination) and view counts.
+- Search by name (autocomplete) and by terms (text search), both in employees and departments.
+- Generate PDF reports (by salary, by references, by location, and general).
+- Performance with caching (loads data faster) and pagination in lists.
 
-## Como funciona (explicação simples)
-- A API é como um balcão de atendimento: você faz um pedido (chamada HTTP) e recebe a resposta com os dados.
-- A interface web é uma “página” que conversa com a API para exibir os dados de forma amigável.
-- As fotos e arquivos dos funcionários vão para um armazenamento seguro na nuvem (S3). A API gera links temporários para visualizar.
-- Para ficar rápido, usamos um "lembrete de respostas" (cache) que evita refazer contas repetidas.
+## How It Works (Simple Explanation)
+- The API is like a service desk: you make a request (HTTP call) and receive a response with data.
+- The web interface is a "page" that communicates with the API to display data in a user-friendly way.
+- Employee photos and files are stored securely in the cloud (S3). The API generates temporary links for viewing.
+- To be fast, we use a "response reminder" (cache) that avoids recalculating repeated operations.
 
+# 📸 Demo GIFs
 
-# 📸 Demonstrações em GIF
-
-Abaixo estão exemplos reais das principais funcionalidades do sistema,
-gravados diretamente da interface. Cada GIF vem acompanhado de uma
-descrição técnica.
+Below are real examples of the system's main functionalities, recorded directly from the interface. Each GIF includes a technical description.
 
 ------------------------------------------------------------------------
 
-## 1️⃣ Login e Carregamento Inicial
+## 1️⃣ Login and Initial Loading
 
 ![Login](./gifs/Login%20e%20Carregamento%20Inicial.gif)
 
-**Descrição:**\
-Demonstra o fluxo completo de autenticação. O usuário acessa a
-interface, realiza login e a API valida as credenciais via cookie
-httpOnly. Em seguida, a listagem inicial que é carregada
-usando paginação e cache Redis, exibindo rapidez na resposta do backend.
+**Description:**\
+Demonstrates the complete authentication flow. The user accesses the interface, logs in, and the API validates credentials via httpOnly cookie. Then, the initial listing loads using pagination and Redis cache, showing backend response speed.
 
 ------------------------------------------------------------------------
 
-## 2️⃣ Busca com Autocomplete
+## 2️⃣ Search with Autocomplete
 
 ![Autocomplete](./gifs/Busca%20com%20Autocomplete.gif)
 
-**Descrição:**\
-Mostra o sistema de autocomplete em ação. Conforme o usuário digita,
-sugestões de funcionários e setores aparecem instantaneamente graças à
-integração com o Atlas Search.
+**Description:**\
+Shows the autocomplete system in action. As the user types, suggestions for employees and departments appear instantly thanks to integration with Atlas Search.
 
 ------------------------------------------------------------------------
 
-## 3️⃣ Criação de Funcionário com Upload para S3
+## 3️⃣ Employee Creation with S3 Upload
 
 ![CreateFuncionario](./gifs/Criação%20de%20Funcionário%20com%20Upload%20para%20S3.gif)
 
-**Descrição:**\
-Apresenta o processo de cadastro de um novo funcionário. O usuário
-preenche o formulário, envia uma foto e confirma o cadastro. O arquivo é
-processado pelo Multer, enviado ao Amazon S3 e, logo após a criação, o
-novo funcionário aparece na lista com seu respectivo link pré-assinado.
+**Description:**\
+Shows the process of registering a new employee. The user fills out the form, uploads a photo, and confirms the registration. The file is processed by Multer, sent to Amazon S3, and immediately after creation, the new employee appears in the list with their respective pre-signed link.
 
 ------------------------------------------------------------------------
 
-## 4️⃣ Edição e Atualização de Funcionário
+## 4️⃣ Employee Editing and Updating
 
 ![UpdateFuncionario](./gifs/Edição%20e%20Atualização%20de%20Funcionário.gif)
 
-**Descrição:**\
-Demonstra a edição de um funcionário já existente. Após abrir o perfil,
-o usuário altera campos como cargo, setor ou contato e salva as
-alterações. As modificações são imediatamente refletidas na listagem,
-mostrando o funcionamento das rotas PUT e o CRUD completo da API.
+**Description:**\
+Demonstrates editing an existing employee. After opening the profile, the user changes fields like position, department, or contact and saves the changes. Modifications are immediately reflected in the listing, showing the functioning of PUT routes and the complete API CRUD.
 
 ------------------------------------------------------------------------
 
-## 5️⃣ Organização de Setores em Hierarquia
+## 5️⃣ Department Organization in Hierarchy
 
 ![HierarquiaSetores](./gifs/Organização%20de%20Setores%20em%20Hierarquia.gif)
 
-**Descrição:**\
-Mostra a navegação pela estrutura hierárquica dos setores (Setor →
-Subsetor → Coordenadoria). Cada nível exibe suas informações e a
-contagem de funcionários vinculados. Esse GIF evidencia o tratamento de
-relações hierárquicas complexas e agregações realizadas pelo MongoDB.
+**Description:**\
+Shows navigation through the hierarchical department structure (Sector → Sub-sector → Coordination). Each level displays its information and the count of linked employees. This GIF demonstrates handling of complex hierarchical relationships and aggregations performed by MongoDB.
 
 ------------------------------------------------------------------------
 
-## 6️⃣ Geração de Relatório em PDF
+## 6️⃣ PDF Report Generation
 
 ![RelatorioPDF](./gifs/Geração%20de%20Relatório%20em%20PDF.gif)
 
-**Descrição:**\
-Exibe o processo de criação de relatórios. O usuário seleciona o tipo
-desejado (ex.: salarial), solicita a geração e recebe o download
-automático do PDF. Ao abrir o arquivo, o relatório aparece totalmente
-formatado, comprovando o uso do PDFKit e o envio correto de respostas
-binárias pela API.
+**Description:**\
+Shows the report creation process. The user selects the desired type (e.g., salary), requests generation, and receives automatic PDF download. When opening the file, the report appears fully formatted, proving the use of PDFKit and correct binary response sending by the API.
 
 ------------------------------------------------------------------------
 
-## 7️⃣ Busca Textual Completa
+## 7️⃣ Complete Textual Search
 
 ![BuscaCompleta](./gifs/Busca%20Textual%20Completa.gif)
 
-**Descrição:**\
-O usuário executa uma busca textual completa digitando um termo inteiro.
-Os resultados são exibidos agrupados por setor ou coordenadoria, e a
-rolagem revela diferentes níveis hierárquicos. Essa demonstração destaca
-o uso de agregações, indexação e filtros avançados na rota `/search`.
+**Description:**\
+The user performs a complete textual search by entering a full term. Results are displayed grouped by sector or coordination, and scrolling reveals different hierarchical levels. This demonstration highlights the use of aggregations, indexing, and advanced filters in the `/search` route.
 
 ------------------------------------------------------------------------
 
-## 8️⃣ Ações em Massa
+## 8️⃣ Bulk Actions
 
 ![AcoesMassa](./gifs/Ações%20em%20Massa.gif)
 
-**Descrição:**\
-Apresenta operações em lote. O usuário seleciona múltiplos funcionários
-e executa uma ação --- como excluir usuários ou alterar a coordenadoria
-de todos de uma vez. O resultado é aplicado imediatamente, mostrando
-operações bulk via rotas POST/PUT e validações adequadas no backend.
+**Description:**\
+Presents batch operations. The user selects multiple employees and performs an action—such as deleting users or changing the coordination for all at once. The result is applied immediately, showing bulk operations via POST/PUT routes and proper backend validations.
 
+## 🔄 2️⃣ Request Flow Diagram (Generic Example)
 
-## Comece em 5 minutos
-Escolha UMA das opções abaixo.
+Applies to listing, searching, and other operations:
 
-1) Sem instalar nada — usar a interface web
-- Acesse: https://interface-sistema-maranguape.vercel.app/
-- Navegue e teste as telas (a interface usa esta API por trás).
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant R as API Route
+    participant C as Controller
+    participant S as Service
+    participant Cache as Redis
+    participant DB as MongoDB
 
-2) Docker (recomendado para testar tudo rápido)
-- Pré-requisitos: Docker e Docker Compose.
-- Comando:
+    U->>F: Action in interface
+    F->>R: HTTP Request
+    R->>C: Forwards request
+    C->>S: Calls business rule
+    S->>Cache: Checks cache
+    alt Cache HIT
+        Cache-->>S: Returns cached data
+    else Cache MISS
+        S->>DB: Queries database
+        DB-->>S: Returns data
+        S->>Cache: Saves to cache
+    end
+    S-->>C: Returns data
+    C-->>F: Response
+    F-->>U: Displays data
+```
+
+## 🔐 3️⃣ Login Sequence Diagram (httpOnly Cookie)
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant API as Auth API
+    participant DB as MongoDB
+
+    U->>F: Enters credentials
+    F->>API: POST /login
+    API->>DB: Validates user
+    DB-->>API: Valid user
+    API-->>F: Set-Cookie (httpOnly JWT)
+    F-->>U: Authenticated session
+```
+
+## 📂 4️⃣ File Upload Diagram (Multer + S3)
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant API as API
+    participant M as Multer
+    participant S3 as AWS S3
+
+    U->>F: Submits form + file
+    F->>API: multipart/form-data
+    API->>M: Processes upload (memory)
+    M-->>API: Validated file
+    API->>S3: Upload via SDK
+    S3-->>API: Confirmation
+    API-->>F: Returns signed link
+    F-->>U: Displays image/document
+```
+
+## 📄 5️⃣ PDF Report Generation Diagram
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant API as API
+    participant DB as MongoDB
+    participant PDF as PDFKit
+
+    U->>F: Requests report
+    F->>API: POST /relatorio
+    API->>DB: Fetches data
+    DB-->>API: Aggregated data
+    API->>PDF: Generates PDF
+    PDF-->>API: PDF Buffer
+    API-->>F: application/pdf
+    F-->>U: Automatic download
+```
+
+## Get Started in 5 Minutes
+Choose ONE of the options below.
+
+1) **Without installing anything — use the web interface**
+- Access: https://interface-sistema-maranguape.vercel.app/
+- Navigate and test the screens (the interface uses this API in the background).
+
+2) **Docker (recommended for quick testing)**
+- Prerequisites: Docker and Docker Compose.
+- Command:
 ```
 docker-compose up --build
 ```
-- Acesse pelo navegador: http://localhost:8080 (Nginx faz proxy para a API)
+- Access via browser: http://localhost:8080 (Nginx proxies to the API)
 
-3) Instalação local (para desenvolvedores)
+3) **Local installation (for developers)**
 ```
-# Clonar
+# Clone
 git clone https://github.com/AlanZayon/api-maranguape.git
 cd api-maranguape
 
-# Instalar dependências
+# Install dependencies
 npm install
 
-# Criar arquivo .env (veja a próxima seção)
+# Create .env file (see next section)
 
-# Rodar em desenvolvimento
+# Run in development
 npm run dev
-# ou produção
+# or production
 npm run prod
 ```
 - API: http://localhost:3000
 
-
-## Variáveis de Ambiente (.env)
-Exemplo de .env (coloque na raiz do projeto):
+## Environment Variables (.env)
+Example .env (place at project root):
 
 ```
-# Banco de Dados
+# Database
 MONGO_CONNECTING_FUNCIONARIOS=mongodb://localhost:27017/funcionarios
 MONGO_CONNECTING_USUARIOS=mongodb://localhost:27017/usuarios
 
-# Autenticação
-JWT_SECRET=sua_chave_secreta_jwt
+# Authentication
+JWT_SECRET=your_jwt_secret_key
 JWT_EXPIRES_IN=24h
 
 # AWS S3
-AWS_ACCESS_KEY_ID=seu_access_key
-AWS_SECRET_ACCESS_KEY=seu_secret_key
-S3_BUCKET_NAME=seu-bucket-s3
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+S3_BUCKET_NAME=your-s3-bucket
 
-# Redis (use apenas um dos formatos)
+# Redis (use only one format)
 REDIS_URL=redis://localhost:6379
-# ou
+# or
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 
-# Servidor
+# Server
 PORT=3000
 NODE_ENV=development
 ```
 
-Notas importantes:
-- A API usa cookie httpOnly "authToken" para autenticação. Em produção: secure=true e sameSite=none.
-- Uploads usam o bucket definido em S3_BUCKET_NAME; configure permissões adequadas.
+Important notes:
+- The API uses an httpOnly "authToken" cookie for authentication. In production: secure=true and sameSite=none.
+- Uploads use the bucket defined in S3_BUCKET_NAME; configure appropriate permissions.
 
+## Quick API Guide (Non-Technical)
+- **Login**: Ask the technical administrator for a username and password. The system stores a secure cookie; you don't need to handle tokens manually.
+- **Search employees**: Use the web interface to type a name and see results.
+- **Download reports**: In the interface, choose the report type and click generate.
 
-## Guia rápido da API (sem ser técnico)
-- Fazer login: peça ao responsável técnico um usuário e senha. O sistema guarda um cookie seguro, você não precisa lidar com token manualmente.
-- Buscar funcionários: use a interface web para digitar o nome e ver resultados.
-- Baixar relatórios: na interface, escolha o tipo de relatório e clique em gerar.
-
-
-## Exemplos rápidos (para quem quer testar a API)
+## Quick Examples (For Testing the API)
 - Login:
 ```
 curl -X POST http://localhost:3000/api/usuarios/login \
@@ -212,53 +288,52 @@ curl -X POST http://localhost:3000/api/usuarios/login \
   -d '{"id": "admin", "password": "senha123"}' -i
 ```
 
-- Gerar relatório (PDF):
+- Generate report (PDF):
 ```
 curl -X POST http://localhost:3000/api/funcionarios/relatorio-funcionarios/gerar \
   -H "Content-Type: application/json" \
   -d '{"tipo":"salarial"}' --output relatorio.pdf
 ```
 
+## For Developers
 
-## Para desenvolvedores
-
-### Tecnologias
+### Technologies
 - Node.js, Express
-- MongoDB/Mongoose (conexões separadas para funcionários e usuários)
+- MongoDB/Mongoose (separate connections for employees and users)
 - Redis (ioredis)
-- JWT para autenticação
-- Joi para validações
-- Multer (upload em memória)
+- JWT for authentication
+- Joi for validations
+- Multer (in-memory upload)
 - AWS SDK v3 (S3)
-- PDFKit para relatórios
+- PDFKit for reports
 - Helmet, CORS, rate limiting, morgan
-- Jest e Supertest para testes
+- Jest and Supertest for testing
 
-### Arquitetura (camadas)
-- routes: definição das rotas e mapeamento para controllers.
-- controllers: lidam com HTTP e delegam a services.
-- services: regras de negócio, composição de repositórios e utilitários.
-- repositories: acesso a dados (Mongoose) e integrações de baixo nível.
-- models: schemas do Mongoose.
-- middlewares: validações e proteção (ex.: Joi).
-- utils: utilitários transversais (AWS S3, logger, etc.).
-- config: conexões (MongoDB, Redis), multer, AWS S3.
+### Architecture (Layers)
+- **routes**: route definition and mapping to controllers.
+- **controllers**: handle HTTP and delegate to services.
+- **services**: business rules, repository composition, and utilities.
+- **repositories**: data access (Mongoose) and low-level integrations.
+- **models**: Mongoose schemas.
+- **middlewares**: validations and protection (e.g., Joi).
+- **utils**: cross-cutting utilities (AWS S3, logger, etc.).
+- **config**: connections (MongoDB, Redis), multer, AWS S3.
 
-### Requisitos
-- Node.js 18+ (Docker usa Node 20)
+### Requirements
+- Node.js 18+ (Docker uses Node 20)
 - MongoDB 4.4+
 - Redis 6+
-- AWS S3 (para armazenamento de arquivos)
+- AWS S3 (for file storage)
 
-### Estrutura do Projeto
+### Project Structure
 ```
 src/
-├── app.js                 # Configuração do Express e middlewares
-├── server.js              # Bootstrap do servidor HTTP
+├── app.js                 # Express configuration and middlewares
+├── server.js              # HTTP server bootstrap
 ├── config/
-│   ├── aws.js             # Cliente S3
-│   ├── multerConfig.js    # Upload em memória
-│   ├── redisClient.js     # Cliente Redis
+│   ├── aws.js             # S3 client
+│   ├── multerConfig.js    # In-memory upload
+│   ├── redisClient.js     # Redis client
 │   └── Mongoose/
 │       ├── funcionariosConnection.js
 │       └── usuariosConnection.js
@@ -295,7 +370,7 @@ src/
 │   ├── funcionariosService.js
 │   ├── referencesService.js
 │   ├── RelatorioService.js
-|   └── SetorService.js
+│   └── SetorService.js
 ├── utils/
 │   ├── awsUtils.js
 │   ├── LimiteService.js
@@ -307,120 +382,116 @@ src/
     └── validatesSetor.js
 ```
 
-### Rotas principais (resumo)
+### Main Routes (Summary)
 Base path: `/api`
 
-- Autenticação — `/api/usuarios`
-  - POST `/login` — cria cookie httpOnly `authToken`.
-  - POST `/logout` — invalida token e limpa cookie.
-  - GET `/verify` — retorna `{ authenticated, username, role }`.
+- **Authentication — `/api/usuarios`**
+  - POST `/login` — creates httpOnly cookie `authToken`.
+  - POST `/logout` — invalidates token and clears cookie.
+  - GET `/verify` — returns `{ authenticated, username, role }`.
 
-- Funcionários — `/api/funcionarios`
-  - GET `/buscarFuncionarios?page=1&limit=100` — lista (com cache e URLs S3 pré-assinadas).
+- **Employees — `/api/funcionarios`**
+  - GET `/buscarFuncionarios?page=1&limit=100` — list (with cache and pre-signed S3 URLs).
   - GET `/buscarFuncionariosPorCoordenadoria/:coordId`
   - GET `/setores/:idSetor/funcionarios?page=1&limit=100`
   - POST `/por-divisoes` — `{ ids: string[], page?, limit? }`
-  - POST `/` — cria funcionário (multipart: `foto` imagem, `arquivo` PDF)
+  - POST `/` — creates employee (multipart: `foto` image, `arquivo` PDF)
   - PUT `/edit-funcionario/:id`
   - DELETE `/delete-users` — `{ userIds: string[] }`
   - PUT `/editar-coordenadoria-usuario` — `{ usuariosIds: string[], coordenadoriaId: string }`
-  - PUT `/observacoes/:userId` — atualiza observações (array de strings)
-  - POST `/relatorio-funcionarios/gerar` — retorna PDF
-  - GET `/buscarCargos` — cargos comissionados (cache)
+  - PUT `/observacoes/:userId` — updates notes (array of strings)
+  - POST `/relatorio-funcionarios/gerar` — returns PDF
+  - GET `/buscarCargos` — commissioned positions (cache)
   - GET `/check-name?name=...`
   - GET `/:id/has-funcionarios`
 
-- Setores — `/api/setores`
-  - POST `/` — cria setor `{ nome, tipo, parent? }`
+- **Departments — `/api/setores`**
+  - POST `/` — creates department `{ nome, tipo, parent? }`
   - GET `/setoresOrganizados`
   - GET `/setoresMain`
   - GET `/dados/:setorId`
   - PUT `/rename/:id`
   - DELETE `/del/:id`
 
-- Busca — `/api/search`
-  - GET `/autocomplete?q=...` — sugestões (funcionários e setores) via Atlas Search
-  - GET `/search-funcionarios?q=...` — busca textual + por hierarquia
+- **Search — `/api/search`**
+  - GET `/autocomplete?q=...` — suggestions (employees and departments) via Atlas Search
+  - GET `/search-funcionarios?q=...` — textual search + by hierarchy
 
-- Referências — `/api/referencias`
+- **References — `/api/referencias`**
   - POST `/register-reference` — `{ name, cargo?, telefone? }`
-  - GET `/referencias-dados` — cache por chave fixa
+  - GET `/referencias-dados` — cache by fixed key
   - DELETE `/delete-referencia/:id`
 
-- Relatórios
+- **Reports**
   - POST `/api/funcionarios/relatorio-funcionarios/gerar`
     - Body: `{ ids?: string[], tipo?: "salarial" | "referencias" | "localidade" | "geral" }`
-    - Resposta: PDF (`Content-Type: application/pdf`)
+    - Response: PDF (`Content-Type: application/pdf`)
 
 ### Cache
-- Redis para cachear listas, hierarquias, cargos e referências.
-- Chaves padronizadas, ex.: `setor:{id}:funcionarios:page:{n}`, `coordenadoria:{id}:funcionarios`, `todos:funcionarios:page{n}`, `setoresOrganizados`.
+- Redis to cache lists, hierarchies, positions, and references.
+- Standardized keys, e.g., `setor:{id}:funcionarios:page:{n}`, `coordenadoria:{id}:funcionarios`, `todos:funcionarios:page{n}`, `setoresOrganizados`.
 
-### Uploads e Arquivos
-- `multer.memoryStorage()` com validação de tipos e limite 10MB.
-- Campos: `foto` (jpeg, jpg, png, gif, webp), `arquivo` (PDF).
-- Envio para S3 via URL pré-assinada; leitura também via URL pré-assinada.
+### Uploads and Files
+- `multer.memoryStorage()` with type validation and 10MB limit.
+- Fields: `foto` (jpeg, jpg, png, gif, webp), `arquivo` (PDF).
+- Upload to S3 via pre-signed URL; reading also via pre-signed URL.
 
-### Testes
+### Tests
 - Jest + Supertest.
-- Integração em `tests/integration` e unitários em `tests/unit`.
-- Banco em memória com `mongodb-memory-server`.
+- Integration in `tests/integration` and unit in `tests/unit`.
+- In-memory database with `mongodb-memory-server`.
 ```
 npm test
 ```
 
-### Qualidade e Segurança
-- ESLint e Prettier. Script: `npm run lint`
-- Helmet, CORS restrito, rate limit (100 req/min), morgan.
-- Origens permitidas (CORS) em `src/app.js`:
+### Quality and Security
+- ESLint and Prettier. Script: `npm run lint`
+- Helmet, restricted CORS, rate limit (100 req/min), morgan.
+- Allowed origins (CORS) in `src/app.js`:
   - https://heroic-alfajores-da3394.netlify.app
   - https://interface-sistema-maranguape.vercel.app
   - http://localhost:5174
   - http://localhost:5173
 
+## Glossary (Help for Non-Technical Users)
+- **API**: Like a service desk where programs request and receive information.
+- **Endpoint/route**: The API "door" for a type of request (e.g., /login).
+- **httpOnly cookie**: A secure file that stores your login session.
+- **Cache**: A shortcut to respond faster without redoing everything.
+- **S3**: Cloud service for securely storing files.
 
-## Glossário (ajuda para quem não é técnico)
-- API: é como um balcão onde programas pedem e recebem informações.
-- Endpoint/rota: a “porta” da API para um tipo de pedido (ex.: /login).
-- Cookie httpOnly: um arquivo seguro que guarda sua sessão de login.
-- Cache: um atalho para responder mais rápido sem refazer tudo.
-- S3: serviço na nuvem para guardar arquivos com segurança.
+## Troubleshooting (Quick FAQ)
+- **Can't log in**: Confirm username/password and if the browser allows cookies.
+- **Report doesn't download**: Check if pop-up/download is allowed and if the requested type exists.
+- **Image/file doesn't appear**: Could be an expired temporary link; reload the page or make a new query.
+- **CORS error when calling API**: Check if your origin is in the allowed list in `src/app.js`.
 
+## My Responsibilities in This Project
 
-## Solução de problemas (FAQ rápido)
-- Não consigo logar: confirme usuário/senha e se o navegador permite cookies.
-- Relatório não baixa: verifique se o pop-up/download está liberado e se o tipo solicitado existe.
-- Imagem/arquivo não aparece: pode ser link temporário expirado; recarregue a página ou faça nova consulta.
-- Erro de CORS ao chamar API: confira se sua origem está na lista permitida em `src/app.js`.
+- Complete backend architecture (Node.js + Express)
+- Integration with MongoDB and Redis
+- Implementation of secure authentication via httpOnly cookies
+- Upload system with AWS S3 and pre-signed links
+- Building services and controllers (employees, departments, search, reports...)
+- Implementation of PDF reports (PDFKit)
+- Configurable cache system by key (Redis)
+- Complete documentation
+- Interface deployment and Docker infrastructure
 
-## Minhas responsabilidades neste projeto
+## Skills Demonstrated
 
-- Arquitetura completa do backend (Node.js + Express)
-- Integração com MongoDB e Redis
-- Implementação da autenticação segura via cookies httpOnly
-- Sistema de uploads com AWS S3 e links pré-assinados
-- Construção dos serviços e controllers (funcionários, setores, busca, relatórios…)
-- Implementação dos relatórios em PDF (PDFKit)
-- Sistema de cache configurável por chave (Redis)
-- Documentação completa
-- Deploy da interface e infraestrutura Docker
+- Scalable Node.js architecture
+- Professional REST API
+- Asynchronous programming and optimization
+- Complete structuring with services/controllers
+- CI/CD and Docker
+- Web security: httpOnly cookies, CORS, Helmet, rate limiting
+- Advanced MongoDB (aggregations, separate connections)
+- Redis for performance optimization
+- Professional PDF generation
+- Documentation best practices
 
-## Skills Demonstradas
+⚡ This project demonstrates my ability to build a complete, secure, performant, and production-ready backend system, including authentication, caching, uploads, reports, and professional architecture. It's a perfect example of the type of solution I can deliver in a real environment.
 
-- Arquitetura Node.js escalável
-- API REST profissional
-- Programação assíncrona e otimização
-- Estruturação completa com services/controllers
-- CI/CD e Docker
-- Segurança web: cookies httpOnly, CORS, Helmet, rate limit
-- MongoDB avançado (agregações, conexões separadas)
-- Redis para otimização de desempenho
-- Geração de PDFs profissionais
-- Boas práticas de documentação
-
-⚡ Este projeto demonstra minha capacidade de construir um sistema backend completo, seguro,
-performático e pronto para produção, incluindo autenticação, cache, uploads, relatórios e 
-arquitetura profissional. É um exemplo perfeito do tipo de solução que posso entregar em ambiente real.
-
-## Licença
-Este projeto está licenciado sob a licença MIT. Veja o arquivo [LICENSE](./LICENSE).
+## License
+This project is licensed under the MIT license. See the [LICENSE](./LICENSE) file.
