@@ -11,7 +11,7 @@ flowchart LR
     User["👤 User"]
     Frontend["🌐 Web Interface (Vercel)"]
     API["⚙️ API Node.js (Express)"]
-    MongoFunc["🗄️ MongoDB (Employees)"]
+    MongoFunc["🗄️ MongoDB "]
     Redis["⚡ Redis (Cache)"]
     S3["☁️ AWS S3 (Uploads)"]
     Nginx["🔀 Nginx (Docker)"]
@@ -20,7 +20,6 @@ flowchart LR
     Frontend --> API
     API --> Redis
     API --> MongoFunc
-    API --> MongoUsers
     API --> S3
     Nginx --> API
 ```
