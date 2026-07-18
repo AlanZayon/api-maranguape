@@ -17,6 +17,22 @@ const referenceSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenant',
+    default: null,
+    index: true,
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
+  updatedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
 });
 
 const Referencia = db.model('Reference', referenceSchema);

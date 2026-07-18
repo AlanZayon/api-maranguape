@@ -62,15 +62,15 @@ jobs:
           echo "MONGO_CONNECTING_FUNCIONARIOS=mongodb://admin:admin@localhost:27017/Funcionarios?authSource=admin" >> $GITHUB_ENV
           echo "MONGO_CONNECTING_USUARIOS=mongodb://admin:admin@localhost:27017/usuarios?authSource=admin" >> $GITHUB_ENV
           echo "REDIS_URL=redis://127.0.0.1:6379" >> $GITHUB_ENV
+          echo "JWT_SECRET=ci-test-secret-not-for-production" >> $GITHUB_ENV
+          echo "JWT_EXPIRES_IN=1h" >> $GITHUB_ENV
+          echo "S3_BUCKET_NAME=system-maranguape" >> $GITHUB_ENV
+
+      - name: Rodar linting
+        run: npm run lint
 
       - name: Rodar os testes
         run: npm test
-
-      - name: Rodar linting
-        run: npm run lint
-
-      - name: Rodar linting
-        run: npm run lint
 
   deploy:
     runs-on: ubuntu-latest

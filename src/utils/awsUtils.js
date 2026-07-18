@@ -18,14 +18,16 @@ class awsUtils {
     }
   }
 
-  static async uploadFile(file, folder) {
+  static async uploadFile(file, folder, tenantId = null) {
     const fileName = `${Date.now()}.${file.mimetype.split('/')[1]}`;
-    const key = `uploads/${folder}/${fileName}`;
+    const tenantPrefix = tenantId ? `${tenantId}/` : '';
+    const key = `uploads/${tenantPrefix}${folder}/${fileName}`;
+    const bucket = process.env.S3_BUCKET_NAME || 'system-maranguape';
 
     const uploadUrl = await getSignedUrl(
       s3Client,
       new PutObjectCommand({
-        Bucket: 'system-maranguape',
+        Bucket: bucket,
         Key: key,
         Body: file.buffer,
         ContentType: file.mimetype,

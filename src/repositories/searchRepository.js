@@ -163,13 +163,18 @@ class SearchRepository {
   }
 
   /**
-   * Find funcionarios IDs under a specific coordenadoria or a set of coordenadorias.
+   * Find funcionarios IDs under a specific setor/subsetor or a set of them.
    * Accepts an ObjectId or a MongoDB $in query shape.
-   * @param {ObjectId|{ $in: Array<ObjectId> }} coordenadoriaId Id or filter for coordenadoria(s).
+   * @param {ObjectId|{ $in: Array<ObjectId> }} setorId Id or filter for setorId(s).
    * @returns {Promise<Array<{ _id: ObjectId }>>}
    */
+  static async findFuncionariosBySetorId(setorId) {
+    return await Funcionario.find({ setorId }).select('_id');
+  }
+
+  /** @deprecated use findFuncionariosBySetorId */
   static async findFuncionariosByCoordenadoria(coordenadoriaId) {
-    return await Funcionario.find({ coordenadoria: coordenadoriaId }).select('_id');
+    return this.findFuncionariosBySetorId(coordenadoriaId);
   }
 
   /**

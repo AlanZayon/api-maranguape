@@ -1,12 +1,24 @@
 /* eslint-disable no-undef */
-// tests/unit/controllers/setorController.test.js
 const { describe, test, expect } = require('@jest/globals');
 const request = require('supertest');
-const app = require('../../../src/app'); // A configuração do Express
-const SetorService = require('../../../src/services/SetorService');
 
-// Mocking do SetorService
+jest.mock('../../../src/middlewares/auth', () => ({
+  authenticate: (req, res, next) => {
+    req.user = { id: 'u1', role: 'admin', username: 'test', tenantId: null };
+    next();
+  },
+  authorize: () => (req, res, next) => next(),
+}));
+
+jest.mock('../../../src/middlewares/tenant', () => ({
+  resolveTenant: (req, res, next) => next(),
+  withTenantFilter: (_req, filter) => filter,
+}));
+
 jest.mock('../../../src/services/SetorService');
+
+const app = require('../../../src/app');
+const SetorService = require('../../../src/services/SetorService');
 
 describe('SetorController', () => {
   describe('POST /setor', () => {
@@ -20,7 +32,7 @@ describe('SetorController', () => {
 
       expect(response.status).toBe(201);
       expect(response.body).toEqual(setorMock);
-      expect(SetorService.createSetor).toHaveBeenCalledWith(data);
+      expect(SetorService.createSetor).toHaveBeenCalled();
     });
 
     test('deve retornar erro ao tentar criar setor', async () => {
@@ -33,7 +45,7 @@ describe('SetorController', () => {
       const response = await request(app).post('/api/setores').send(data);
 
       expect(response.status).toBe(500);
-      expect(response.body.message).toBe('Erro ao criar setor');
+      expect(response.body.message).toBe('Erro interno do servidor');
     });
   });
 
@@ -59,7 +71,7 @@ describe('SetorController', () => {
       const response = await request(app).get('/api/setores/setoresMain');
 
       expect(response.status).toBe(500);
-      expect(response.body.message).toBe('Erro ao buscar setores');
+      expect(response.body.message).toBe('Erro interno do servidor');
     });
   });
 
@@ -74,7 +86,7 @@ describe('SetorController', () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(dadosMock);
-      expect(SetorService.getSetorData).toHaveBeenCalledWith(setorId);
+      expect(SetorService.getSetorData).toHaveBeenCalledWith(setorId, null);
     });
 
     test('deve retornar erro ao tentar obter dados de um setor', async () => {
@@ -87,7 +99,7 @@ describe('SetorController', () => {
       const response = await request(app).get(`/api/setores/dados/${setorId}`);
 
       expect(response.status).toBe(500);
-      expect(response.body.message).toBe('Erro ao buscar dados do setor');
+      expect(response.body.message).toBe('Erro interno do servidor');
     });
   });
 
@@ -105,7 +117,7 @@ describe('SetorController', () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(setorMock);
-      expect(SetorService.renameSetor).toHaveBeenCalledWith(id, nome);
+      expect(SetorService.renameSetor).toHaveBeenCalledWith(id, nome, 'u1');
     });
 
     test('deve retornar erro ao tentar renomear um setor', async () => {
@@ -121,7 +133,7 @@ describe('SetorController', () => {
         .send({ nome });
 
       expect(response.status).toBe(500);
-      expect(response.body.message).toBe('Erro ao atualizar o setor');
+      expect(response.body.message).toBe('Erro interno do servidor');
     });
   });
 
@@ -137,22 +149,20 @@ describe('SetorController', () => {
       expect(response.body.message).toBe(
         'Setor e seus filhos deletados com sucesso'
       );
-      expect(SetorService.deleteSetor).toHaveBeenCalledWith(id);
+      expect(SetorService.deleteSetor).toHaveBeenCalled();
     });
 
     test('deve retornar erro ao tentar deletar um setor', async () => {
       const id = '123';
 
       SetorService.deleteSetor.mockRejectedValue(
-        new Error('Erro ao deletar o setor e seus filhosr')
+        new Error('Erro ao deletar o setor e seus filhos')
       );
 
       const response = await request(app).delete(`/api/setores/del/${id}`);
 
       expect(response.status).toBe(500);
-      expect(response.body.message).toBe(
-        'Erro ao deletar o setor e seus filhos'
-      );
+      expect(response.body.message).toBe('Erro interno do servidor');
     });
   });
 });

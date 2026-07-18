@@ -37,11 +37,11 @@ describe('FuncionarioService', () => {
     const mockFuncionario = {
       _id: '2',
       nome: 'Novo Funcionario',
-      coordenadoria: 'ABC',
+      setorId: 'ABC',
       toObject: jest.fn().mockReturnValue({
         _id: '2',
         nome: 'Novo Funcionario',
-        coordenadoria: 'ABC',
+        setorId: 'ABC',
       }),
     };
     FuncionarioRepository.create.mockResolvedValue(mockFuncionario);
@@ -53,19 +53,19 @@ describe('FuncionarioService', () => {
     CacheService.clearCacheForFuncionarios = jest.fn().mockResolvedValue();
 
     const result = await FuncionarioService.createFuncionario({
-      body: { nome: 'Novo Funcionario' },
+      body: { nome: 'Novo Funcionario', setorId: 'ABC' },
       files: {},
     });
 
     expect(result).toEqual({
       _id: '2',
       nome: 'Novo Funcionario',
-      coordenadoria: 'ABC',
+      setorId: 'ABC',
       fotoUrl: null,
       arquivoUrl: null,
     });
     expect(FuncionarioRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ nome: 'Novo Funcionario' })
+      expect.objectContaining({ nome: 'Novo Funcionario', setorId: 'ABC' })
     );
     expect(SetorRepository.findSetorByCoordenadoria).toHaveBeenCalledWith(['ABC']);
     expect(CacheService.clearCacheForFuncionarios).toHaveBeenCalledWith('ABC', 'SETOR_PARENT');

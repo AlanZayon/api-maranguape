@@ -63,14 +63,12 @@ class SearchService {
     let setoresInfo = [];
 
     for (const setor of setoresEncontrados) {
-      if (setor.tipo === 'Coordenadoria') {
-        const funcs = await SearchRepository.findFuncionariosByCoordenadoria(setor._id);
-        funcionariosIds.push(...funcs.map(f => f._id));
-      } else {
-        const allChildIds = await SearchRepository.findChildIds(setor._id);
-        const funcs = await SearchRepository.findFuncionariosByCoordenadoria({ $in: allChildIds });
-        funcionariosIds.push(...funcs.map(f => f._id));
-      }
+      const allChildIds = await SearchRepository.findChildIds(setor._id);
+      const idsToMatch = [setor._id, ...allChildIds];
+      const funcs = await SearchRepository.findFuncionariosBySetorId({
+        $in: idsToMatch,
+      });
+      funcionariosIds.push(...funcs.map((f) => f._id));
 
       setoresInfo.push({
         id: setor._id,

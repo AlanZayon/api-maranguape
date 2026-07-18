@@ -2,8 +2,23 @@ const mongoose = require('mongoose');
 const Setor = require('../models/setoresSchema');
 
 class SetorRepository {
-  static async getAllSetores() {
-    return await Setor.find();
+  static tenantFilter(tenantId) {
+    if (!tenantId) return {};
+    const tid = mongoose.Types.ObjectId.isValid(tenantId)
+      ? new mongoose.Types.ObjectId(tenantId)
+      : tenantId;
+    // Include legacy docs without tenantId until full migration
+    return {
+      $or: [
+        { tenantId: tid },
+        { tenantId: null },
+        { tenantId: { $exists: false } },
+      ],
+    };
+  }
+
+  static async getAllSetores(tenantId = null) {
+    return await Setor.find(this.tenantFilter(tenantId));
   }
 
   static async findById(id) {
@@ -14,31 +29,44 @@ class SetorRepository {
     return await new Setor(data).save();
   }
 
-  static async findMainSetores() {
-    return await Setor.find({ parent: null });
+  static async findMainSetores(tenantId = null) {
+    return await Setor.find({ parent: null, ...this.tenantFilter(tenantId) });
   }
 
-  static async findSetorData(setorId) {
-    return await Setor.find({ parent: setorId });
+  static async findSetorData(setorId, tenantId = null) {
+    return await Setor.find({ parent: setorId, ...this.tenantFilter(tenantId) });
   }
 
   static async findSetorByCoordenadoria(setorIds) {
     return await Setor.find({ _id: { $in: setorIds } });
   }
 
-  static async updateNome(id, nome) {
-    return await Setor.findByIdAndUpdate(id, { nome }, { new: true });
+  static async updateNome(id, nome, extra = {}) {
+    return await Setor.findByIdAndUpdate(
+      id,
+      { nome, ...extra },
+      { new: true }
+    );
   }
 
-  static async deleteWithChildren(id) {
+  static async updateParent(id, parent, extra = {}) {
+    return await Setor.findByIdAndUpdate(
+      id,
+      { parent, ...extra },
+      { new: true }
+    );
+  }
+
+  /**
+   * Returns all descendant IDs including the root id (does not delete).
+   */
+  static async getDescendantIds(id) {
     const objectId = mongoose.Types.ObjectId.isValid(id)
       ? new mongoose.Types.ObjectId(id)
       : id;
 
-    const setoresParaDeletar = await Setor.aggregate([
-      {
-        $match: { _id: objectId },
-      },
+    const setores = await Setor.aggregate([
+      { $match: { _id: objectId } },
       {
         $graphLookup: {
           from: 'setors',
@@ -50,11 +78,17 @@ class SetorRepository {
       },
     ]);
 
-    const idsParaDeletar = setoresParaDeletar.flatMap((s) => [
+    if (!setores.length) return [];
+
+    return setores.flatMap((s) => [
       s._id,
       ...s.descendants.map((d) => d._id),
     ]);
+  }
 
+  static async deleteWithChildren(id) {
+    const idsParaDeletar = await this.getDescendantIds(id);
+    if (!idsParaDeletar.length) return { deletedCount: 0 };
     return await Setor.deleteMany({ _id: { $in: idsParaDeletar } });
   }
 }

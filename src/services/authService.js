@@ -1,28 +1,58 @@
 const jwt = require('jsonwebtoken');
 const AuthRepository = require('../repositories/authRepository');
+const AppError = require('../utils/AppError');
+
+function getJwtExpiresIn() {
+  return process.env.JWT_EXPIRES_IN || '24h';
+}
+
+function parseExpiresToMs(expiresIn) {
+  if (typeof expiresIn === 'number') return expiresIn * 1000;
+  const match = String(expiresIn).match(/^(\d+)([smhd])$/);
+  if (!match) return 24 * 60 * 60 * 1000;
+  const n = Number(match[1]);
+  const unit = match[2];
+  const mult = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
+  return n * (mult[unit] || 3_600_000);
+}
 
 class AuthService {
+  static getCookieMaxAge() {
+    return parseExpiresToMs(getJwtExpiresIn());
+  }
+
   static async login(id, password, tokenLogin) {
     const user = await AuthRepository.findUserById(id);
-    
+
     if (!user) {
-      throw new Error('Credenciais Incorretas do usuário');
+      throw new AppError('Credenciais incorretas', 401, 'INVALID_CREDENTIALS');
     }
 
-    if (user.lastValidToken !== tokenLogin && user.lastValidToken !== null) {
-      throw new Error('Sessão inválida (possível login em outro dispositivo)');
+    // Allow re-login with correct password (replace previous session token)
+    // Only block if client sent a stale cookie that doesn't match the stored session
+    if (
+      tokenLogin &&
+      user.lastValidToken &&
+      user.lastValidToken !== tokenLogin
+    ) {
+      // Stale cookie from another session — clear it by issuing a fresh login below
+      // after password check (do not block valid credentials)
     }
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      throw new Error('Credenciais Incorretas da senha');
+      throw new AppError('Credenciais incorretas', 401, 'INVALID_CREDENTIALS');
     }
 
-    const token = jwt.sign(
-      { id: user._id, role: user.role, username: user.username },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    const expiresIn = getJwtExpiresIn();
+    const payload = {
+      id: user._id,
+      role: user.role,
+      username: user.username,
+      tenantId: user.tenantId ? String(user.tenantId) : null,
+    };
+
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
 
     await AuthRepository.updateUserToken(user._id, token);
 
@@ -32,7 +62,8 @@ class AuthService {
         authenticated: true,
         username: user.username,
         role: user.role,
-      }
+        tenantId: payload.tenantId,
+      },
     };
   }
 
@@ -66,6 +97,8 @@ class AuthService {
         authenticated: true,
         username: decoded.username,
         role: decoded.role,
+        tenantId: decoded.tenantId || null,
+        id: decoded.id,
       };
     } catch {
       return { authenticated: false };

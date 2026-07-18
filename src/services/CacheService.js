@@ -1,46 +1,85 @@
 const redisClient = require('../config/redisClient');
 
 class CacheService {
-static async getOrSetCache(key, fetchFunction) {
-  const start = process.hrtime.bigint();
+  /**
+   * Resolve a cache key, optionally supporting tenant: prefixes.
+   * Callers may pass keys already prefixed with `tenant:`.
+   */
+  static resolveKey(key) {
+    return key;
+  }
 
-  const cachedData = await redisClient.get(key);
-  if (cachedData) {
-    metrics.cacheHits.inc();
-    metrics.cacheLatency
-      .labels("hit")
-      .observe(
-        Number(process.hrtime.bigint() - start) / 1e6
+  static async scanKeys(pattern) {
+    const keys = [];
+    let cursor = '0';
+
+    do {
+      const [nextCursor, found] = await redisClient.scan(
+        cursor,
+        'MATCH',
+        pattern,
+        'COUNT',
+        100
       );
+      cursor = nextCursor;
+      if (found?.length) {
+        keys.push(...found);
+      }
+    } while (cursor !== '0');
 
-    return JSON.parse(cachedData);
+    return keys;
   }
 
-  metrics.cacheMisses.inc();
+  static async deleteByPattern(pattern) {
+    const keys = await this.scanKeys(pattern);
+    if (keys.length === 0) return 0;
 
-  const freshData = await fetchFunction();
-
-  if (freshData?.funcionarios?.length) {
-    await redisClient.setex(key, 3600, JSON.stringify(freshData));
+    const pipeline = redisClient.pipeline();
+    for (const key of keys) {
+      pipeline.del(key);
+    }
+    await pipeline.exec();
+    return keys.length;
   }
 
-  metrics.cacheLatency
-    .labels("miss")
-    .observe(
-      Number(process.hrtime.bigint() - start) / 1e6
-    );
+  static async getOrSetCache(key, fetchFunction, ttlSeconds = 3600) {
+    const cacheKey = this.resolveKey(key);
+    const cachedData = await redisClient.get(cacheKey);
+    if (cachedData) {
+      return JSON.parse(cachedData);
+    }
 
-  return freshData;
-}
+    const freshData = await fetchFunction();
 
+    if (freshData !== null && freshData !== undefined) {
+      await redisClient.setex(cacheKey, ttlSeconds, JSON.stringify(freshData));
+    }
+
+    return freshData;
+  }
+
+  /**
+   * Clears cache for a single setor id (and shared list keys).
+   * @param {string|ObjectId} id
+   */
   static async clearCacheForSetor(id) {
+    if (id == null) {
+      await Promise.all([
+        redisClient.del('setores:null'),
+        redisClient.del('setoresOrganizados'),
+        this.deleteByPattern('tenant:*:setores:null'),
+        this.deleteByPattern('tenant:*:setoresOrganizados'),
+      ]);
+      return;
+    }
+
     const setorKey = `setor:${id}:dados`;
     const existsAsSetor = await redisClient.exists(setorKey);
 
     if (existsAsSetor) {
       await redisClient.del(setorKey);
     } else {
-      const allSetorKeys = await redisClient.keys('setor:*:dados');
+      const allSetorKeys = await this.scanKeys('setor:*:dados');
 
       for (const key of allSetorKeys) {
         const data = await redisClient.get(key);
@@ -49,7 +88,9 @@ static async getOrSetCache(key, fetchFunction) {
         try {
           const parsed = JSON.parse(data);
           const subsetores = parsed.subsetores || [];
-          const found = subsetores.some((s) => s._id === id);
+          const found = subsetores.some(
+            (s) => String(s._id) === String(id)
+          );
 
           if (found) {
             await redisClient.del(key);
@@ -64,96 +105,99 @@ static async getOrSetCache(key, fetchFunction) {
     await Promise.all([
       redisClient.del('setores:null'),
       redisClient.del('setoresOrganizados'),
+      this.deleteByPattern('tenant:*:setores:null'),
+      this.deleteByPattern('tenant:*:setoresOrganizados'),
     ]);
   }
 
-static async clearCacheForFuncionarios(...keys) {
-  await this.clearCacheForDivisoes(...keys);
-  
-  const flatKeys = keys.flat(Infinity);
-  const uniqueKeys = [...new Set(flatKeys)];
-  
-  const patterns = [
-    'setor:*:funcionarios:*',
-    'coordenadoria:*:funcionarios',
-    'todos:funcionarios:page*',
-    'funcionarios:total',
-    'todos:cargosComissionados'
-  ];
+  static async clearCacheForFuncionarios(...keys) {
+    await this.clearCacheForDivisoes(...keys);
 
-  await Promise.all([
-    ...uniqueKeys.map(id => redisClient.del(`divisoes:${id}:*`)),
-    ...patterns.map(p => redisClient.keys(p).then(keys => 
-      keys.length > 0 ? redisClient.del(...keys) : null
-    ))
-  ]);
-}
+    const flatKeys = keys.flat(Infinity);
+    const uniqueKeys = [...new Set(flatKeys.filter((k) => k != null))];
+
+    const patterns = [
+      'setor:*:funcionarios*',
+      'coordenadoria:*:funcionarios',
+      'setores:*:page*',
+      'divisoes:*',
+      'todos:funcionarios:page*',
+      'funcionarios:total',
+      'todos:cargosComissionados',
+    ];
+
+    await Promise.all([
+      ...uniqueKeys.map((id) => this.deleteByPattern(`divisoes:${id}:*`)),
+      ...uniqueKeys.map((id) => this.deleteByPattern(`setores:*${id}*`)),
+      ...uniqueKeys.map((id) => redisClient.del(`setor:${id}:funcionarios`)),
+      ...patterns.map((p) => this.deleteByPattern(p)),
+    ]);
+  }
 
   static async clearCacheForDivisoes(...idsDivisoes) {
-  const uniqueIds = [...new Set(idsDivisoes.flat(Infinity))];
-  
-  // Gera TODOS os padrões possíveis que podem conter esses IDs
-  const patternsToClear = [
-    'divisoes:*', // Todas as combinações (incluindo páginas)
-    ...uniqueIds.map(id => `divisoes:*${id}*:*`), // Padrão otimizado para Redis
-    ...uniqueIds.map(id => `*:${id}:*`) // Fallback para outros formatos
-  ];
+    const uniqueIds = [
+      ...new Set(idsDivisoes.flat(Infinity).filter((id) => id != null)),
+    ];
 
-  // Busca paralela das chaves
-  const keysToDelete = new Set();
-  
-  await Promise.all(
-    patternsToClear.map(async (pattern) => {
-      try {
-        const keys = await redisClient.keys(pattern);
-        keys.forEach(key => {
-          // Filtro adicional para garantir que estamos limpando apenas caches de divisões
-          if (key.includes('divisoes:') && key.includes(':page')) {
-            keysToDelete.add(key);
-          }
-        });
-      } catch (error) {
-        console.error(`Erro ao buscar chaves com padrão ${pattern}:`, error);
+    const patternsToClear = [
+      'divisoes:*',
+      ...uniqueIds.map((id) => `divisoes:*${id}*:*`),
+      ...uniqueIds.map((id) => `*:${id}:*`),
+    ];
+
+    const keysToDelete = new Set();
+
+    await Promise.all(
+      patternsToClear.map(async (pattern) => {
+        try {
+          const keys = await this.scanKeys(pattern);
+          keys.forEach((key) => {
+            if (key.includes('divisoes:') && key.includes(':page')) {
+              keysToDelete.add(key);
+            }
+          });
+        } catch (error) {
+          console.error(
+            `Erro ao buscar chaves com padrão ${pattern}:`,
+            error
+          );
+        }
+      })
+    );
+
+    if (keysToDelete.size > 0) {
+      const pipeline = redisClient.pipeline();
+      for (const key of keysToDelete) {
+        pipeline.del(key);
       }
-    })
-  );
-
-  if (keysToDelete.size > 0) {
-    await redisClient.del(...Array.from(keysToDelete));
-    console.log(`[CACHE] Limpas ${keysToDelete.size} chaves:`, Array.from(keysToDelete));
+      await pipeline.exec();
+      console.log(
+        `[CACHE] Limpas ${keysToDelete.size} chaves:`,
+        Array.from(keysToDelete)
+      );
+    }
   }
-}
 
   static async clearCacheForCoordChange(
     oldCoordIds,
     newCoordId,
     parentIds = []
   ) {
-    const keys = [...new Set([...oldCoordIds, newCoordId, ...parentIds])];
+    const keys = [
+      ...new Set(
+        [...oldCoordIds, newCoordId, ...parentIds].filter((k) => k != null)
+      ),
+    ];
 
     for (const key of keys) {
-      const coordKey = `coordenadoria:${key}:funcionarios`;
-      await redisClient.del(coordKey);
-
-      const setorPattern = `setor:${key}:funcionarios:page:*`;
-      const setorKeys = await redisClient.keys(setorPattern);
-      if (setorKeys.length > 0) {
-        await redisClient.del(...setorKeys);
-      }
+      await redisClient.del(`setor:${key}:funcionarios`);
+      await redisClient.del(`coordenadoria:${key}:funcionarios`);
+      await this.deleteByPattern(`setor:${key}:funcionarios:page:*`);
     }
 
-    const todosFuncionariosKeys = await redisClient.keys(
-      'todos:funcionarios:page*'
-    );
-    if (todosFuncionariosKeys.length > 0) {
-      await redisClient.del(...todosFuncionariosKeys);
-    }
-
-    const totalKey = 'funcionarios:total';
-    await redisClient.del(totalKey);
-
-    const cargosKey = 'todos:cargosComissionados';
-    await redisClient.del(cargosKey);
+    await this.deleteByPattern('todos:funcionarios:page*');
+    await redisClient.del('funcionarios:total');
+    await redisClient.del('todos:cargosComissionados');
   }
 }
 

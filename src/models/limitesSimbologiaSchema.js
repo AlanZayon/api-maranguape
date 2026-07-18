@@ -11,6 +11,22 @@ const limitesSimbologiaSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenant',
+    default: null,
+    index: true,
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
+  updatedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
 });
 
 module.exports = db.model('Simbologia', limitesSimbologiaSchema);

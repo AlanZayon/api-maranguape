@@ -1,68 +1,93 @@
 const SetorService = require('../services/SetorService');
 
+function resolveTenantId(req) {
+  return req.user?.tenantId || req.tenantId || null;
+}
+
 class SetorController {
-  static async createSetor(req, res) {
+  static async createSetor(req, res, next) {
     try {
-      const result = await SetorService.createSetor(req.body);
+      const result = await SetorService.createSetor(
+        req.body,
+        resolveTenantId(req),
+        req.user?.id
+      );
       res.status(201).json(result);
-    } catch (error) {
-      console.error('Erro ao criar setor:', error);
-      res
-        .status(500)
-        .json({ error: 'Erro ao criar setor', message: error.message });
-    }
-  }
-  static async getSetoresOrganizados(req, res) {
-    try {
-      const setores = await SetorService.getSetoresOrganizados();
-      res.json({ setores });
-    } catch (error) {
-      console.error('Erro ao buscar setores organizados:', error);
-      res.status(500).json({ error: 'Erro ao buscar dados' });
+    } catch (err) {
+      next(err);
     }
   }
 
-  static async getMainSetores(req, res) {
+  static async getSetoresOrganizados(req, res, next) {
     try {
-      const setores = await SetorService.getMainSetores();
+      const setores = await SetorService.getSetoresOrganizados(
+        resolveTenantId(req)
+      );
       res.json({ setores });
-    } catch (error) {
-      res.status(500).json({ message: 'Erro ao buscar setores', error });
+    } catch (err) {
+      next(err);
     }
   }
 
-  static async getSetorData(req, res) {
+  static async getMainSetores(req, res, next) {
+    try {
+      const setores = await SetorService.getMainSetores(resolveTenantId(req));
+      res.json({ setores });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getSetorData(req, res, next) {
     try {
       const { setorId } = req.params;
-      const data = await SetorService.getSetorData(setorId);
+      const data = await SetorService.getSetorData(
+        setorId,
+        resolveTenantId(req)
+      );
       res.json(data);
-    } catch (error) {
-      res.status(500).json({ message: 'Erro ao buscar dados do setor', error });
+    } catch (err) {
+      next(err);
     }
   }
 
-  static async renameSetor(req, res) {
+  static async renameSetor(req, res, next) {
     try {
       const { id } = req.params;
       const { nome } = req.body;
-      const result = await SetorService.renameSetor(id, nome);
+      const result = await SetorService.renameSetor(id, nome, req.user?.id);
       res.status(200).json(result);
-    } catch (error) {
-      res.status(500).json({ message: 'Erro ao atualizar o setor', error });
+    } catch (err) {
+      next(err);
     }
   }
 
-  static async deleteSetor(req, res) {
+  static async moveSetor(req, res, next) {
     try {
       const { id } = req.params;
-      await SetorService.deleteSetor(id);
+      const { parent } = req.body;
+      const result = await SetorService.moveSetor(id, parent, {
+        tenantId: resolveTenantId(req),
+        userId: req.user?.id,
+      });
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async deleteSetor(req, res, next) {
+    try {
+      const { id } = req.params;
+      await SetorService.deleteSetor(id, {
+        tenantId: resolveTenantId(req),
+        userId: req.user?.id,
+      });
       res
         .status(200)
         .json({ message: 'Setor e seus filhos deletados com sucesso' });
-    } catch (error) {
-      res
-        .status(500)
-        .json({ message: 'Erro ao deletar o setor e seus filhos', error });
+    } catch (err) {
+      next(err);
     }
   }
 }

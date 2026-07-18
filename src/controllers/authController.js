@@ -1,7 +1,16 @@
 const AuthService = require('../services/authService');
 
+const isProduction = process.env.NODE_ENV === 'production';
+
+const authCookieOptions = {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? 'none' : 'lax',
+  path: '/',
+};
+
 class AuthController {
-  static async login(req, res) {
+  static async login(req, res, next) {
     const { id, password } = req.body;
     const tokenLogin = req.cookies.authToken;
 
@@ -9,33 +18,25 @@ class AuthController {
       const { token, user } = await AuthService.login(id, password, tokenLogin);
 
       res.cookie('authToken', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'none',
-        maxAge: 24 * 60 * 60 * 1000,
-        path: '/',
+        ...authCookieOptions,
+        maxAge: AuthService.getCookieMaxAge(),
       });
 
       res.json(user);
     } catch (err) {
-      res.status(401).json({ message: err.message });
+      next(err);
     }
   }
 
-  static async logout(req, res) {
+  static async logout(req, res, next) {
     const token = req.cookies.authToken;
 
     try {
       await AuthService.logout(token);
-
-      res.clearCookie('authToken', {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'none',
-      });
+      res.clearCookie('authToken', authCookieOptions);
       res.status(200).json({ message: 'Logout realizado com sucesso!' });
     } catch (err) {
-      res.status(500).json({ message: 'Erro no logout', error: err.message });
+      next(err);
     }
   }
 

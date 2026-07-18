@@ -3,7 +3,6 @@ const dbFuncionarios = require('../config/Mongoose/funcionariosConnection');
 
 const db = dbFuncionarios();
 
-// Esquema de funcionário
 const funcionarioSchema = new mongoose.Schema({
   nome: { type: String, required: true, unique: true },
   foto: { type: String, default: null },
@@ -24,12 +23,18 @@ const funcionarioSchema = new mongoose.Schema({
   cidade: { type: String },
   bairro: { type: String },
   telefone: { type: String },
-  observacoes: [{ type: String }],
+  // Mixed: aceita legado (string) e o formato atual { texto, createdAt }
+  observacoes: {
+    type: [mongoose.Schema.Types.Mixed],
+    default: [],
+  },
   arquivo: { type: String, default: null },
-  coordenadoria: {
+  /** Lotação: Setor ou Subsetor (mesmo collection Setor). */
+  setorId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Coordenadoria',
+    ref: 'Setor',
     required: true,
+    index: true,
   },
   inicioContrato: { type: Date, default: null },
   fimContrato: {
@@ -40,12 +45,30 @@ const funcionarioSchema = new mongoose.Schema({
     },
     validate: {
       validator: function (value) {
-        return value === null ||
+        return (
+          value === null ||
           value instanceof Date ||
-          value === 'indeterminado';
+          value === 'indeterminado'
+        );
       },
-      message: 'fimContrato deve ser uma data válida ou "indeterminado"'
-    }
+      message: 'fimContrato deve ser uma data válida ou "indeterminado"',
+    },
+  },
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenant',
+    default: null,
+    index: true,
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
+  updatedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
   },
   createdAt: { type: Date, default: Date.now },
 });

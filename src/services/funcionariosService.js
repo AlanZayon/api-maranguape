@@ -5,54 +5,83 @@ const CargoComissionado = require('../repositories/cargoComissionadoRepository')
 const CacheService = require('../services/CacheService');
 const awsUtils = require('../utils/awsUtils');
 const LimiteService = require('../utils/LimiteService');
+const normalizarTexto = require('../utils/normalizarTexto');
+const normalizeObservacoes = require('../utils/normalizeObservacoes');
+const AppError = require('../utils/AppError');
 
 const BATCH_SIZE = 100;
 
+/** Resolve lotação id from body (setorId canônico ou alias coordenadoria). */
+function resolveSetorId(body = {}) {
+  return body.setorId || body.coordenadoria || null;
+}
+
+function lotacaoIdOf(funcionario) {
+  if (!funcionario) return null;
+  return funcionario.setorId || funcionario.coordenadoria || null;
+}
+
+function escapeCsv(value) {
+  if (value == null) return '';
+  const str = String(value);
+  if (/[",\n\r]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
 class FuncionarioService {
-  static async buscarFuncionarios(page = 1, limit = 100) {
-    return await CacheService.getOrSetCache(
-      `todos:funcionarios:page${page}`,
-      async () => {
-        const skip = (page - 1) * limit;
+  static async buscarFuncionarios(page = 1, limit = 100, tenantId = null) {
+    const cacheKey = tenantId
+      ? `tenant:${tenantId}:todos:funcionarios:page${page}`
+      : `todos:funcionarios:page${page}`;
 
-        const total = await FuncionarioRepository.countDocuments();
+    return await CacheService.getOrSetCache(cacheKey, async () => {
+      const skip = (page - 1) * limit;
 
-        const funcionarios = await FuncionarioRepository.findAll()
-          .skip(skip)
-          .limit(limit);
+      const total = await FuncionarioRepository.countDocuments(tenantId);
 
-        const funcionariosComUrls = await Promise.all(
-          funcionarios.map(async (funcionario) => ({
-            ...funcionario,
-            fotoUrl: funcionario.foto
-              ? await awsUtils.gerarUrlPreAssinada(funcionario.foto)
-              : null,
-            arquivoUrl: funcionario.arquivo
-              ? await awsUtils.gerarUrlPreAssinada(funcionario.arquivo)
-              : null,
-          }))
-        );
+      const funcionarios = await FuncionarioRepository.findAll(tenantId)
+        .skip(skip)
+        .limit(limit);
 
-        return {
-          funcionarios: funcionariosComUrls,
-          total,
-          page,
-          pages: Math.ceil(total / limit),
-        };
-      }
-    );
+      const funcionariosComUrls = await Promise.all(
+        funcionarios.map(async (funcionario) => ({
+          ...funcionario,
+          fotoUrl: funcionario.foto
+            ? await awsUtils.gerarUrlPreAssinada(funcionario.foto)
+            : null,
+          arquivoUrl: funcionario.arquivo
+            ? await awsUtils.gerarUrlPreAssinada(funcionario.arquivo)
+            : null,
+        }))
+      );
+
+      return {
+        funcionarios: funcionariosComUrls,
+        total,
+        page,
+        pages: Math.ceil(total / limit),
+      };
+    });
   }
 
-  static async buscarFuncionariosPorCoordenadoria(idCoordenadoria) {
-    return await CacheService.getOrSetCache(
-      `coordenadoria:${idCoordenadoria}:funcionarios`,
-      async () => {
-        const objectId = mongoose.Types.ObjectId.isValid(idCoordenadoria)
-          ? new mongoose.Types.ObjectId(idCoordenadoria)
-          : idCoordenadoria;
+  static async buscarFuncionariosPorCoordenadoria(idCoordenadoria, tenantId = null) {
+    return this.buscarFuncionariosPorLotacao(idCoordenadoria, tenantId);
+  }
 
-        const funcionarios =
-          await FuncionarioRepository.findByCoordenadoria(objectId);
+  static async buscarFuncionariosPorLotacao(setorId, tenantId = null) {
+    return await CacheService.getOrSetCache(
+      `setor:${setorId}:funcionarios`,
+      async () => {
+        const objectId = mongoose.Types.ObjectId.isValid(setorId)
+          ? new mongoose.Types.ObjectId(setorId)
+          : setorId;
+
+        const funcionarios = await FuncionarioRepository.findBySetorId(
+          [objectId],
+          tenantId
+        );
 
         return await Promise.all(
           funcionarios.map(async (funcionario) => ({
@@ -69,7 +98,12 @@ class FuncionarioService {
     );
   }
 
-  static async buscarFuncionariosPorSetor(idSetor, page = 1, limit = 100) {
+  static async buscarFuncionariosPorSetor(
+    idSetor,
+    page = 1,
+    limit = 100,
+    tenantId = null
+  ) {
     const objectId = mongoose.Types.ObjectId.isValid(idSetor)
       ? new mongoose.Types.ObjectId(idSetor)
       : idSetor;
@@ -79,13 +113,17 @@ class FuncionarioService {
       async () => {
         const skip = (page - 1) * limit;
 
-        const total = await FuncionarioRepository.countBySetor(objectId);
+        const total = await FuncionarioRepository.countBySetor(
+          objectId,
+          tenantId
+        );
 
         const funcionarios =
           await FuncionarioRepository.buscarFuncionariosPorSetor(
             objectId,
             skip,
-            limit
+            limit,
+            tenantId
           );
 
         const funcionariosComUrls = await Promise.all(
@@ -110,34 +148,85 @@ class FuncionarioService {
     );
   }
 
-static async buscarFuncionariosPorDivisoes(idsDivisoes, page = 1, limit = 100) {
-  return CacheService.getOrSetCache(
-    `divisoes:${idsDivisoes.join('-')}:page${page}`,
-    async () => {
-      const skip = (page - 1) * limit;
-      
-      const [total, funcionarios] = await Promise.all([
-        FuncionarioRepository.countBySetor(idsDivisoes),
-        FuncionarioRepository.findByDivisoes(idsDivisoes, skip, limit)
-      ]);
+  static async buscarFuncionariosPorDivisoes(
+    idsDivisoes,
+    page = 1,
+    limit = 100,
+    tenantId = null
+  ) {
+    return this.buscarFuncionariosPorSetores(idsDivisoes, page, limit, tenantId);
+  }
 
-      const funcionariosComUrls = await Promise.all(
-        funcionarios.map(async (f) => ({
-          ...f,
-          fotoUrl: f.foto ? await awsUtils.gerarUrlPreAssinada(f.foto) : null,
-          arquivoUrl: f.arquivo ? await awsUtils.gerarUrlPreAssinada(f.arquivo) : null
-        }))
+  static async buscarFuncionariosPorSetores(
+    idsSetores,
+    page = 1,
+    limit = 100,
+    tenantId = null
+  ) {
+    return CacheService.getOrSetCache(
+      `setores:${idsSetores.join('-')}:page${page}`,
+      async () => {
+        const skip = (page - 1) * limit;
+
+        const [total, funcionarios] = await Promise.all([
+          FuncionarioRepository.countBySetor(idsSetores, tenantId),
+          FuncionarioRepository.findBySetores(
+            idsSetores,
+            skip,
+            limit,
+            tenantId
+          ),
+        ]);
+
+        const funcionariosComUrls = await Promise.all(
+          funcionarios.map(async (f) => ({
+            ...f,
+            fotoUrl: f.foto
+              ? await awsUtils.gerarUrlPreAssinada(f.foto)
+              : null,
+            arquivoUrl: f.arquivo
+              ? await awsUtils.gerarUrlPreAssinada(f.arquivo)
+              : null,
+          }))
+        );
+
+        return {
+          funcionarios: funcionariosComUrls,
+          total,
+          page,
+          pages: Math.ceil(total / limit),
+        };
+      }
+    );
+  }
+
+  static async exportCsv(tenantId = null) {
+    const rows = await FuncionarioRepository.findForExport(tenantId);
+    const header = [
+      'nome',
+      'secretaria',
+      'funcao',
+      'natureza',
+      'referencia',
+      'salarioBruto',
+    ];
+    const lines = [header.join(',')];
+
+    for (const row of rows) {
+      lines.push(
+        [
+          escapeCsv(row.nome),
+          escapeCsv(row.secretaria),
+          escapeCsv(row.funcao),
+          escapeCsv(row.natureza),
+          escapeCsv(row.referencia),
+          escapeCsv(row.salarioBruto),
+        ].join(',')
       );
-
-      return {
-        funcionarios: funcionariosComUrls,
-        total,
-        page,
-        pages: Math.ceil(total / limit)
-      };
     }
-  );
-}
+
+    return `\uFEFF${lines.join('\n')}`;
+  }
 
   static async createFuncionario(req) {
     const fotoUrlAWS = req.files?.foto
@@ -172,19 +261,30 @@ static async buscarFuncionariosPorDivisoes(idsDivisoes, page = 1, limit = 100) {
       );
     }
 
+    const setorId = resolveSetorId(req.body);
+    if (!setorId) {
+      throw new AppError('Lotação (setorId) obrigatória.', 400, 'BAD_REQUEST');
+    }
+
+    const { coordenadoria: _ignored, ...restBody } = req.body;
+
     const funcionarioCriado = await FuncionarioRepository.create({
-      ...req.body,
+      ...restBody,
+      setorId,
+      observacoes: normalizeObservacoes(req.body.observacoes || []),
       foto: fotoUrlAWS,
       arquivo: arquivoUrlAWS,
+      tenantId: req.user?.tenantId || req.tenantId || null,
+      createdBy: req.user?.id || null,
     });
 
     const setor = await SetorRepository.findSetorByCoordenadoria([
-      funcionarioCriado.coordenadoria,
+      funcionarioCriado.setorId,
     ]);
 
     await CacheService.clearCacheForFuncionarios(
-      funcionarioCriado.coordenadoria,
-      setor[0].parent
+      funcionarioCriado.setorId,
+      setor[0]?.parent
     );
 
     return {
@@ -228,19 +328,23 @@ static async buscarFuncionariosPorDivisoes(idsDivisoes, page = 1, limit = 100) {
     ? await awsUtils.uploadFile(files.arquivo[0], 'arquivos')
     : atual.arquivo;
 
+  const setorId = resolveSetorId(body) || lotacaoIdOf(atual);
+  const { coordenadoria: _ignored, ...restBody } = body;
+
   const funcionarioAtualizado = await FuncionarioRepository.update(id, {
-    ...body,
+    ...restBody,
+    setorId,
     foto: fotoUrlAWS,
     arquivo: arquivoUrlAWS,
   });
 
   const setor = await SetorRepository.findSetorByCoordenadoria([
-    funcionarioAtualizado.coordenadoria,
+    funcionarioAtualizado.setorId,
   ]);
 
   await CacheService.clearCacheForFuncionarios(
-    funcionarioAtualizado.coordenadoria,
-    setor[0].parent
+    funcionarioAtualizado.setorId,
+    setor[0]?.parent
   );
 
   return {
@@ -262,7 +366,7 @@ static async buscarFuncionariosPorDivisoes(idsDivisoes, page = 1, limit = 100) {
     try {
       const setoresAfetados = new Set();
       const batchPromises = [];
-      const cargosComissionados = new Map(); // nomeFuncao -> count
+      const cargosComissionados = new Map();
 
       for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
         const batch = userIds.slice(i, i + BATCH_SIZE);
@@ -272,8 +376,9 @@ static async buscarFuncionariosPorDivisoes(idsDivisoes, page = 1, limit = 100) {
             const funcionarios = await FuncionarioRepository.findByIds(batch);
 
             funcionarios.forEach((func) => {
-              if (func.coordenadoria) {
-                setoresAfetados.add(func.coordenadoria);
+              const lotacao = lotacaoIdOf(func);
+              if (lotacao) {
+                setoresAfetados.add(lotacao);
               }
 
               if (func.natureza === 'COMISSIONADO' && func.funcao) {
@@ -319,22 +424,41 @@ static async buscarFuncionariosPorDivisoes(idsDivisoes, page = 1, limit = 100) {
   }
 
   static async updateCoordinatoria(userIds, newCoordId) {
+    return this.updateLotacao(userIds, newCoordId);
+  }
+
+  static async updateLotacao(userIds, newSetorId) {
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      throw new AppError('Lista de usuários inválida.', 400, 'BAD_REQUEST');
+    }
+    if (!newSetorId) {
+      throw new AppError('Setor de destino obrigatório.', 400, 'BAD_REQUEST');
+    }
+
     const users = await FuncionarioRepository.findByIds(userIds);
-    const oldCoordIds = users
-      .map((u) => u.coordenadoria?.toString())
+    if (!users.length) {
+      throw new AppError('Nenhum funcionário encontrado.', 404, 'NOT_FOUND');
+    }
+
+    const oldSetorIds = users
+      .map((u) => lotacaoIdOf(u)?.toString())
       .filter((id) => id);
 
-    const oldCoordenadorias =
-      await SetorRepository.findSetorByCoordenadoria(oldCoordIds);
-    const parentIds = oldCoordenadorias.map((c) => c.parent).filter(Boolean);
+    const oldSetores =
+      await SetorRepository.findSetorByCoordenadoria(oldSetorIds);
+    const parentIds = oldSetores.map((c) => c.parent).filter(Boolean);
 
-    await FuncionarioRepository.updateCoordenadoria(userIds, newCoordId);
+    await FuncionarioRepository.updateSetorId(userIds, newSetorId);
 
-    await CacheService.clearCacheForCoordChange(
-      oldCoordIds,
-      newCoordId,
-      parentIds
-    );
+    try {
+      await CacheService.clearCacheForCoordChange(
+        oldSetorIds,
+        newSetorId,
+        parentIds
+      );
+    } catch (cacheErr) {
+      console.error('Falha ao limpar cache após transferência:', cacheErr);
+    }
 
     return FuncionarioRepository.findByIds(userIds);
   }
@@ -346,24 +470,27 @@ static async buscarFuncionariosPorDivisoes(idsDivisoes, page = 1, limit = 100) {
       throw new Error('Usuário não encontrado.');
     }
 
+    const normalized = normalizeObservacoes(observacoes, {
+      assignMissingDate: true,
+    });
+
     const updatedFuncionario = await FuncionarioRepository.updateObservacoes(
       userId,
-      observacoes
+      normalized
     );
 
-    const setor = await SetorRepository.findSetorByCoordenadoria([
-      updatedFuncionario.coordenadoria,
-    ]);
+    const lotacao = lotacaoIdOf(updatedFuncionario);
+    const setor = await SetorRepository.findSetorByCoordenadoria([lotacao]);
 
     await CacheService.clearCacheForFuncionarios(
-      updatedFuncionario.coordenadoria,
-      setor[0].parent
+      lotacao,
+      setor[0]?.parent
     );
 
     return updatedFuncionario;
   }
 
-  static async checkNameAvailability(name) {
+  static async checkNameAvailability(name, tenantId = null) {
     if (!name || name.trim().length < 3) {
       return {
         available: true,
@@ -375,7 +502,7 @@ static async buscarFuncionariosPorDivisoes(idsDivisoes, page = 1, limit = 100) {
     const normalizedName = normalizarTexto(name);
 
     const existingFuncionario =
-      await FuncionarioRepository.findByName(normalizedName);
+      await FuncionarioRepository.findByName(normalizedName, tenantId);
 
     if (existingFuncionario) {
       return {
@@ -398,41 +525,9 @@ static async buscarFuncionariosPorDivisoes(idsDivisoes, page = 1, limit = 100) {
       throw new Error('Entidade não encontrada');
     }
 
-    if (entity.tipo === 'Coordenadoria') {
-      const count = await FuncionarioRepository.countFuncionariosInCoordenadoria(entityId);
-      return count > 0;
-    } else {
-      const coordenadoriasIds = await this.getCoordenadoriasIdsRecursive(entityId);
-      const count = await FuncionarioRepository.countFuncionariosInCoordenadorias(coordenadoriasIds);
-      return count > 0;
-    }
-  }
-
-  static async getCoordenadoriasIdsRecursive(parentId) {
-    const children = await SetorRepository.findSetorData(parentId);
-    let coordenadoriasIds = [];
-
-    for (const child of children) {
-      if (child.tipo === 'Coordenadoria') {
-        coordenadoriasIds.push(child._id);
-      } else {
-        const subCoordenadorias = await this.getCoordenadoriasIdsRecursive(child._id);
-        coordenadoriasIds = [...coordenadoriasIds, ...subCoordenadorias];
-      }
-    }
-
-    return coordenadoriasIds;
+    const count = await FuncionarioRepository.countBySetor(entityId);
+    return count > 0;
   }
 }
-
-const normalizarTexto = (valor) => {
-  if (typeof valor !== 'string' || !valor.trim()) return valor;
-  return valor
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/ç/g, 'c')
-    .replace(/Ç/g, 'C')
-    .toUpperCase();
-};
 
 module.exports = FuncionarioService;

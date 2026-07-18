@@ -3,38 +3,33 @@ const dbFuncionarios = require('../config/Mongoose/funcionariosConnection');
 
 const db = dbFuncionarios();
 
-// Esquema de coordenadoria
 const setorSchema = new mongoose.Schema({
   nome: { type: String, required: true },
   tipo: {
     type: String,
-    enum: ['Setor', 'Subsetor', 'Coordenadoria'],
+    enum: ['Setor', 'Subsetor'],
     required: true,
   },
-  parent: { type: mongoose.Schema.Types.ObjectId, ref: 'Setor', default: null }, // Referência ao setor pai
-  funcionarios: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Funcionario',
-      validate: {
-        validator: function (value) {
-          return this.tipo === 'Coordenadoria' || value.length === 0;
-        },
-        message:
-          "O campo 'funcionarios' só pode ser preenchido se o tipo for 'Coordenadoria'.",
-      },
-    },
-  ], // Array de referências aos funcionários
+  parent: { type: mongoose.Schema.Types.ObjectId, ref: 'Setor', default: null },
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenant',
+    default: null,
+    index: true,
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
+  updatedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
   createdAt: { type: Date, default: Date.now },
 });
 
-// Middleware para ajustar o campo 'funcionarios'
-setorSchema.pre('save', function (next) {
-  if (this.tipo !== 'Coordenadoria') {
-    this.funcionarios = []; // Limpa o campo 'funcionarios' se o tipo não for 'Coordenadoria'
-  }
-  next();
-});
 const Setor = db.model('Setor', setorSchema);
 
 module.exports = Setor;

@@ -16,9 +16,9 @@ const normalizar = () => Joi.string().custom((value) => normalizarTexto(value));
 
 const setorValidationSchema = Joi.object({
   nome: normalizar().required(),
-  tipo: Joi.string().valid('Setor', 'Subsetor', 'Coordenadoria').required(),
+  tipo: Joi.string().valid('Setor', 'Subsetor').required(),
   parent: Joi.when('tipo', {
-    is: Joi.string().valid('Subsetor', 'Coordenadoria'),
+    is: 'Subsetor',
     then: Joi.string().required().messages({
       'any.required': '{#label} precisa ter um setor pai.',
     }),

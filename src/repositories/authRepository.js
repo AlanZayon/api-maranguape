@@ -9,6 +9,25 @@ class AuthRepository {
     return await User.findById(_id);
   }
 
+  static async findUsers(filter = {}) {
+    return User.find(filter)
+      .select('-passwordHash -lastValidToken')
+      .sort({ createdAt: -1 })
+      .lean();
+  }
+
+  static async createUser(data) {
+    return User.create(data);
+  }
+
+  static async updateUser(_id, data) {
+    return User.findByIdAndUpdate(_id, data, { new: true });
+  }
+
+  static async deleteUser(_id) {
+    return User.findByIdAndDelete(_id);
+  }
+
   static async updateUserToken(userId, token) {
     return await User.findByIdAndUpdate(
       userId,

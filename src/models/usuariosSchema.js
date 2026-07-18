@@ -1,17 +1,20 @@
 const mongoose = require('mongoose');
-const dbUsuarios = require('../config/Mongoose/funcionariosConnection');
+const connectToUsuariosDB = require('../config/Mongoose/usuariosConnection');
 const bcrypt = require('bcryptjs');
 
-const db = dbUsuarios();
+const db = connectToUsuariosDB();
 
 const userSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   username: { type: String, required: true, unique: true },
   passwordHash: { type: String, required: true },
-  role: { type: String, enum: ['admin', 'user'], default: 'user' },
-  lastValidToken: { type: String, default: null }, 
-  tokenExpiresAt: { type: Date, default: null }
-});
+  role: { type: String, enum: ['admin', 'user', 'readonly', 'superadmin'], default: 'user' },
+  tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', default: null, index: true },
+  lastValidToken: { type: String, default: null },
+  tokenExpiresAt: { type: Date, default: null },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+}, { timestamps: true });
 
 // Método para comparar senhas
 userSchema.methods.comparePassword = async function (inputPassword) {

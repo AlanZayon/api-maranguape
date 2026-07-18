@@ -6,13 +6,12 @@ const compression = require('compression');
 const cors = require('cors');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
-require('./scripts/validationToken')
+require('./scripts/validationToken');
 const rateLimit = require('express-rate-limit');
-const usuarioRoute = require('./routes/authRoutes');
-const setoresRoutes = require('./routes/setoresRoutes');
-const funcionariosRoutes = require('./routes/funcionariosRoutes');
-const referenciasRoutes = require('./routes/referencesRoutes');
-const searchRoutes = require('./routes/searchRoutes');
+const { registerRoutes } = require('./modules/registerRoutes');
+const { notFoundHandler, errorHandler } = require('./middlewares/errorHandler');
+const { resolveTenant } = require('./middlewares/tenant');
+const metrics = require('./middlewares/metrics');
 
 const app = express();
 
@@ -22,6 +21,7 @@ const allowedOrigins = [
   'http://localhost:5174',
   'http://localhost:5173',
   'http://localhost:4200',
+  ...(process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : []),
 ];
 
 const corsOptions = {
@@ -35,7 +35,6 @@ const corsOptions = {
   credentials: true,
 };
 
-// Middlewares globais
 app.use(cors(corsOptions));
 app.use(helmet());
 app.use(morgan('dev'));
@@ -43,25 +42,35 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(compression());
-
+app.use(metrics);
+app.set('etag', false);
 app.set('trust proxy', 1);
 
-// Configuração do rate limit
+app.use(resolveTenant);
+
 const limiter = rateLimit({
-  windowMs: 60 * 1000, // 15 minutos
-  max: 100, // Limita a 100 requisições por 15 minutos
+  windowMs: 60 * 1000,
+  max: Number(process.env.RATE_LIMIT_MAX) || 100,
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use(limiter);
 
-// Rotas (adicionaremos rotas mais tarde)
 app.get('/', async (req, res) => {
-  res.send('Hello World!');
+  res.json({ status: 'ok', service: 'api-organograma' });
 });
 
-app.use('/api/setores', setoresRoutes);
-app.use('/api/funcionarios', funcionariosRoutes);
-app.use('/api/usuarios', usuarioRoute);
-app.use('/api/referencias', referenciasRoutes);
-app.use('/api/search', searchRoutes);
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', uptime: process.uptime() });
+});
+
+app.get('/metrics', (req, res) => {
+  res.json(metrics.getSnapshot());
+});
+
+registerRoutes(app);
+
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 module.exports = app;

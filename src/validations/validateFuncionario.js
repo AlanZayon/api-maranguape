@@ -45,20 +45,33 @@ const funcionarioJoiSchema = Joi.object({
   endereco: normalizar().allow(''),
   bairro: normalizar().allow(''),
   telefone: Joi.string().allow(''),
-  observacoes: Joi.array().items(Joi.string()).optional(),
+  observacoes: Joi.array()
+    .items(
+      Joi.alternatives().try(
+        Joi.string(),
+        Joi.object({
+          texto: Joi.string().required(),
+          createdAt: Joi.date().optional(),
+          _id: Joi.any().optional(),
+        })
+      )
+    )
+    .optional(),
   arquivo: Joi.object({
     buffer: Joi.binary().required(),
     mimetype: Joi.string().valid('application/pdf').required(),
   })
     .optional()
     .allow(null),
-  coordenadoria: normalizar().required(),
+  // setorId é o campo canônico; coordenadoria é alias de compatibilidade
+  setorId: Joi.string().optional(),
+  coordenadoria: Joi.string().optional(),
   inicioContrato: Joi.date().optional().allow(''),
     fimContrato: Joi.alternatives().try(
     Joi.date().optional().allow(''),
     Joi.string().valid('indeterminado').optional()
   ),
   createdAt: Joi.date().default(() => new Date()),
-});
+}).or('setorId', 'coordenadoria');
 
 module.exports = { funcionarioJoiSchema };
