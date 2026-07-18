@@ -11,12 +11,22 @@ function connectToFuncionariosDB(mongoUri) {
   }
 
   const uri = mongoUri || process.env.MONGO_CONNECTING_FUNCIONARIOS;
-  funcionariosConnection = mongoose.createConnection(uri);
+  // Docker Desktop / cold start can take >5s for first server selection
+  funcionariosConnection = mongoose.createConnection(uri, {
+    serverSelectionTimeoutMS: 30000,
+    maxPoolSize: 10,
+  });
 
   funcionariosConnection.on(
     'error',
     console.error.bind(console, 'Erro na conexão com MongoDB:')
   );
+  funcionariosConnection.on('disconnected', () => {
+    console.warn('MongoDB (funcionarios) desconectado — aguardando reconexão...');
+  });
+  funcionariosConnection.on('reconnected', () => {
+    console.log('MongoDB (funcionarios) reconectado');
+  });
   funcionariosConnection.once('open', () => {
     console.log('Conectado ao MongoDB (funcionarios)');
   });

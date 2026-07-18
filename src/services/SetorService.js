@@ -161,13 +161,22 @@ class SetorService {
       action: 'UPDATE',
       entity: 'setor',
       entityId: id,
-      meta: { previousParent, nextParent },
+      meta: {
+        nome: updated?.nome || setor?.nome,
+        previousParent,
+        nextParent,
+      },
     }).catch(() => {});
 
     return updated;
   }
 
   static async deleteSetor(id, auditContext = {}) {
+    const setor = await SetorRepository.findById(id);
+    if (!setor) {
+      throw new AppError('Setor não encontrado', 404, 'NOT_FOUND');
+    }
+
     const descendantIds = await SetorRepository.getDescendantIds(id);
     if (!descendantIds.length) {
       throw new AppError('Setor não encontrado', 404, 'NOT_FOUND');
@@ -195,7 +204,10 @@ class SetorService {
       action: 'DELETE',
       entity: 'setor',
       entityId: id,
-      meta: { descendantCount: descendantIds.length },
+      meta: {
+        nome: setor.nome,
+        descendantCount: descendantIds.length,
+      },
     }).catch(() => {});
   }
 }

@@ -66,6 +66,49 @@ class FuncionarioService {
     });
   }
 
+  /**
+   * Listagem paginada para pickers (referências, etc.) com busca e filtros.
+   * Sem cache Redis — resultado depende de q/filtros.
+   */
+  static async buscarParaSelecao(
+    {
+      q = '',
+      natureza = '',
+      secretaria = '',
+      funcao = '',
+      page = 1,
+      limit = 15,
+      incluirFiltros = false,
+    } = {},
+    tenantId = null
+  ) {
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10) || 15));
+    const skip = (pageNum - 1) * limitNum;
+    const filters = { q, natureza, secretaria, funcao };
+
+    const [total, funcionarios, filtros] = await Promise.all([
+      FuncionarioRepository.countParaSelecao(filters, tenantId),
+      FuncionarioRepository.findParaSelecao(filters, skip, limitNum, tenantId),
+      incluirFiltros
+        ? FuncionarioRepository.distinctFiltrosSelecao(tenantId)
+        : Promise.resolve(null),
+    ]);
+
+    const result = {
+      funcionarios,
+      total,
+      page: pageNum,
+      pages: Math.max(1, Math.ceil(total / limitNum)),
+    };
+
+    if (filtros) {
+      result.filtros = filtros;
+    }
+
+    return result;
+  }
+
   static async buscarFuncionariosPorCoordenadoria(idCoordenadoria, tenantId = null) {
     return this.buscarFuncionariosPorLotacao(idCoordenadoria, tenantId);
   }
@@ -200,8 +243,16 @@ class FuncionarioService {
     );
   }
 
-  static async exportCsv(tenantId = null) {
-    const rows = await FuncionarioRepository.findForExport(tenantId);
+  static async exportCsv(tenantId = null, ids = null) {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new AppError(
+        'Selecione ao menos um funcionário para exportar.',
+        400,
+        'BAD_REQUEST'
+      );
+    }
+
+    const rows = await FuncionarioRepository.findForExport(tenantId, ids);
     const header = [
       'nome',
       'secretaria',

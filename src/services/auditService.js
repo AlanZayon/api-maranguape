@@ -1,4 +1,5 @@
 const AuditLog = require('../models/auditLogSchema');
+const User = require('../models/usuariosSchema');
 const logger = require('../utils/Logger');
 
 class AuditService {
@@ -37,16 +38,51 @@ class AuditService {
       filter.tenantId = tenantId;
     }
 
+    const safeLimit = Math.min(limit, 200);
+
     const [items, total] = await Promise.all([
       AuditLog.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(Math.min(limit, 200))
+        .limit(safeLimit)
         .lean(),
       AuditLog.countDocuments(filter),
     ]);
 
-    return { items, total, limit, skip };
+    const userIds = [
+      ...new Set(
+        items
+          .map((item) => item.userId)
+          .filter(Boolean)
+          .map((id) => String(id))
+      ),
+    ];
+
+    let userMap = {};
+    if (userIds.length) {
+      try {
+        const users = await User.find({ _id: { $in: userIds } })
+          .select('username id')
+          .lean();
+        userMap = Object.fromEntries(
+          users.map((u) => [
+            String(u._id),
+            u.username || u.id || 'usuário',
+          ])
+        );
+      } catch (err) {
+        logger.error('Falha ao enriquecer audit com usuários', {
+          message: err.message,
+        });
+      }
+    }
+
+    const enriched = items.map((item) => ({
+      ...item,
+      username: item.userId ? userMap[String(item.userId)] || null : null,
+    }));
+
+    return { items: enriched, total, limit: safeLimit, skip };
   }
 }
 

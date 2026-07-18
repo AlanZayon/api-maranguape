@@ -6,13 +6,17 @@ class ReferencesRepository {
     return await Reference.findOne({ name });
   }
 
+  static async findReferenceByFuncionarioId(funcionarioId) {
+    return await Reference.findOne({ funcionarioId });
+  }
+
   static async createReference(referenceData) {
     const newReference = new Reference(referenceData);
     return await newReference.save();
   }
 
   static async getAllReferences() {
-    return await Reference.find();
+    return await Reference.find().sort({ name: 1 });
   }
 
   static async deleteReferenceById(id) {

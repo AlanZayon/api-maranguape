@@ -10,6 +10,7 @@ const searchRoutes = require('../routes/searchRoutes');
 const tenantRoutes = require('../routes/tenantRoutes');
 const dashboardRoutes = require('../routes/dashboardRoutes');
 const auditRoutes = require('../routes/auditRoutes');
+const cargoComissionadoRoutes = require('../routes/cargoComissionadoRoutes');
 
 function registerRoutes(app) {
   app.use('/api/usuarios', authRoutes);
@@ -20,6 +21,7 @@ function registerRoutes(app) {
   app.use('/api/tenants', tenantRoutes);
   app.use('/api/dashboard', dashboardRoutes);
   app.use('/api/audit', auditRoutes);
+  app.use('/api/cargos-comissionados', cargoComissionadoRoutes);
 }
 
 module.exports = { registerRoutes };

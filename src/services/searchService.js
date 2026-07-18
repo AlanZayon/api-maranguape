@@ -87,21 +87,28 @@ class SearchService {
     const idsUnicos = [...new Set(todosIds.map(id => id.toString()))]
       .map(id => new ObjectId(id));
 
-    const resultados = await SearchRepository.getFuncionariosByIds(idsUnicos);
+    const resultados =
+      idsUnicos.length > 0
+        ? await SearchRepository.getFuncionariosByIds(idsUnicos)
+        : [];
 
-    // 🔥 AQUI GERAMOS AS URLs PRE-ASSINADAS
     const funcionariosComMidias = await Promise.all(
-      resultados.map(async funcionario => {
-        const fotoUrl = funcionario.foto
-          ? await awsUtils.gerarUrlPreAssinada(funcionario.foto)
+      resultados.map(async (funcionario) => {
+        const base =
+          typeof funcionario.toObject === 'function'
+            ? funcionario.toObject()
+            : funcionario;
+
+        const fotoUrl = base.foto
+          ? await awsUtils.gerarUrlPreAssinada(base.foto)
           : null;
 
-        const arquivoUrl = funcionario.arquivo
-          ? await awsUtils.gerarUrlPreAssinada(funcionario.arquivo)
+        const arquivoUrl = base.arquivo
+          ? await awsUtils.gerarUrlPreAssinada(base.arquivo)
           : null;
 
         return {
-          ...funcionario.toObject(),
+          ...base,
           fotoUrl,
           arquivoUrl,
         };

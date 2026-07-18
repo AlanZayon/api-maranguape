@@ -4,6 +4,22 @@ const Setor = require('../models/setoresSchema');
 const { ObjectId } = require('mongodb');
 
 class SearchRepository {
+  static escapeRegex(str) {
+    return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  static isMissingSearchIndex(error) {
+    const message = String(error?.message || '');
+    return (
+      error?.code === 27 ||
+      error?.codeName === 'IndexNotFound' ||
+      message.includes('text index required') ||
+      message.includes('$search') ||
+      message.includes('Unrecognized pipeline stage') ||
+      message.includes('PlanExecutor error')
+    );
+  }
+
   /**
    * Recursively collect a setor's id and all descendant setor ids.
    * @param {ObjectId|string} parentId The parent setor id.
@@ -23,143 +39,196 @@ class SearchRepository {
 
   /**
    * Suggest funcionario-related terms from multiple fields using Atlas Search autocomplete.
+   * Falls back to regex when Atlas Search is unavailable (e.g. local MongoDB).
    * @param {string} termo The input text to complete.
    * @returns {Promise<Array<{ termo: { nome: string, tipo: string } }>>}
    */
   static async autocompleteFuncionarios(termo) {
-    return await Funcionario.aggregate([
-      {
-        $search: {
-          index: 'autocomplete_funcionarios',
-          compound: {
-            should: [
-              { autocomplete: { query: termo, path: 'nome' } },
-              { autocomplete: { query: termo, path: 'funcao' } },
-              { autocomplete: { query: termo, path: 'bairro' } },
-              { autocomplete: { query: termo, path: 'cidade' } },
-              { autocomplete: { query: termo, path: 'natureza' } },
-              { autocomplete: { query: termo, path: 'tipo' } },
-              { autocomplete: { query: termo, path: 'referencia' } },
-            ],
+    try {
+      return await Funcionario.aggregate([
+        {
+          $search: {
+            index: 'autocomplete_funcionarios',
+            compound: {
+              should: [
+                { autocomplete: { query: termo, path: 'nome' } },
+                { autocomplete: { query: termo, path: 'funcao' } },
+                { autocomplete: { query: termo, path: 'bairro' } },
+                { autocomplete: { query: termo, path: 'cidade' } },
+                { autocomplete: { query: termo, path: 'natureza' } },
+                { autocomplete: { query: termo, path: 'tipo' } },
+                { autocomplete: { query: termo, path: 'referencia' } },
+              ],
+            },
           },
         },
-      },
-      { $limit: 10 },
-      {
-        $project: {
-          termo: {
-            $cond: [
-              { $regexMatch: { input: '$nome', regex: termo, options: 'i' } },
-              { nome: '$nome', tipo: 'Funcionário' },
-              {
-                $cond: [
-                  {
-                    $regexMatch: {
-                      input: '$funcao',
-                      regex: termo,
-                      options: 'i',
+        { $limit: 10 },
+        {
+          $project: {
+            termo: {
+              $cond: [
+                { $regexMatch: { input: '$nome', regex: termo, options: 'i' } },
+                { nome: '$nome', tipo: 'Funcionário' },
+                {
+                  $cond: [
+                    {
+                      $regexMatch: {
+                        input: '$funcao',
+                        regex: termo,
+                        options: 'i',
+                      },
                     },
-                  },
-                  { nome: '$funcao', tipo: 'Função' },
-                  {
-                    $cond: [
-                      {
-                        $regexMatch: {
-                          input: '$bairro',
-                          regex: termo,
-                          options: 'i',
+                    { nome: '$funcao', tipo: 'Função' },
+                    {
+                      $cond: [
+                        {
+                          $regexMatch: {
+                            input: '$bairro',
+                            regex: termo,
+                            options: 'i',
+                          },
                         },
-                      },
-                      { nome: '$bairro', tipo: 'Bairro' },
-                      {
-                        $cond: [
-                          {
-                            $regexMatch: {
-                              input: '$cidade',
-                              regex: termo,
-                              options: 'i',
+                        { nome: '$bairro', tipo: 'Bairro' },
+                        {
+                          $cond: [
+                            {
+                              $regexMatch: {
+                                input: '$cidade',
+                                regex: termo,
+                                options: 'i',
+                              },
                             },
-                          },
-                          { nome: '$cidade', tipo: 'Cidade' },
-                          {
-                            $cond: [
-                              {
-                                $regexMatch: {
-                                  input: '$natureza',
-                                  regex: termo,
-                                  options: 'i',
-                                },
-                              },
-                              { nome: '$natureza', tipo: 'Natureza' },
-                              {
-                                $cond: [
-                                  {
-                                    $regexMatch: {
-                                      input: '$tipo',
-                                      regex: termo,
-                                      options: 'i',
-                                    },
+                            { nome: '$cidade', tipo: 'Cidade' },
+                            {
+                              $cond: [
+                                {
+                                  $regexMatch: {
+                                    input: '$natureza',
+                                    regex: termo,
+                                    options: 'i',
                                   },
-                                  { nome: '$tipo', tipo: 'Tipo' },
-                                  { nome: '$referencia', tipo: 'Referência' },
-                                ],
-                              },
-                            ],
-                          },
-                        ],
-                      },
-                    ],
-                  },
-                ],
-              },
-            ],
+                                },
+                                { nome: '$natureza', tipo: 'Natureza' },
+                                {
+                                  $cond: [
+                                    {
+                                      $regexMatch: {
+                                        input: '$tipo',
+                                        regex: termo,
+                                        options: 'i',
+                                      },
+                                    },
+                                    { nome: '$tipo', tipo: 'Tipo' },
+                                    { nome: '$referencia', tipo: 'Referência' },
+                                  ],
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
           },
         },
-      },
-    ]);
+      ]);
+    } catch (error) {
+      if (!this.isMissingSearchIndex(error)) throw error;
+      return this.autocompleteFuncionariosRegex(termo);
+    }
+  }
+
+  static async autocompleteFuncionariosRegex(termo) {
+    const regex = new RegExp(this.escapeRegex(termo), 'i');
+    const funcionarios = await Funcionario.find({
+      $or: [
+        { nome: regex },
+        { funcao: regex },
+        { bairro: regex },
+        { cidade: regex },
+      ],
+    })
+      .limit(10)
+      .select('nome funcao bairro cidade')
+      .lean();
+
+    return funcionarios.map((f) => {
+      if (regex.test(f.nome || '')) {
+        return { termo: { nome: f.nome, tipo: 'Funcionário' } };
+      }
+      if (regex.test(f.funcao || '')) {
+        return { termo: { nome: f.funcao, tipo: 'Função' } };
+      }
+      if (regex.test(f.bairro || '')) {
+        return { termo: { nome: f.bairro, tipo: 'Bairro' } };
+      }
+      return { termo: { nome: f.cidade, tipo: 'Cidade' } };
+    });
   }
 
   /**
    * Suggest setor names using Atlas Search autocomplete.
+   * Falls back to regex when Atlas Search is unavailable.
    * @param {string} termo The input text to complete.
    * @returns {Promise<Array<{ termo: { nome: string, tipo: string } }>>}
    */
   static async autocompleteSetores(termo) {
-    return await Setor.aggregate([
-      {
-        $search: {
-          index: 'autocomplete_setores',
-          compound: {
-            should: [{ autocomplete: { query: termo, path: 'nome' } }],
+    try {
+      return await Setor.aggregate([
+        {
+          $search: {
+            index: 'autocomplete_setores',
+            compound: {
+              should: [{ autocomplete: { query: termo, path: 'nome' } }],
+            },
           },
         },
-      },
-      { $limit: 10 },
-      {
-        $project: {
-          termo: {
-            nome: '$nome',
-            tipo: '$tipo'
+        { $limit: 10 },
+        {
+          $project: {
+            termo: {
+              nome: '$nome',
+              tipo: '$tipo',
+            },
           },
         },
-      },
-    ]);
+      ]);
+    } catch (error) {
+      if (!this.isMissingSearchIndex(error)) throw error;
+      const regex = new RegExp(this.escapeRegex(termo), 'i');
+      const setores = await Setor.find({ nome: regex })
+        .limit(10)
+        .select('nome tipo')
+        .lean();
+      return setores.map((s) => ({
+        termo: { nome: s.nome, tipo: s.tipo },
+      }));
+    }
   }
 
   /**
    * Full-text search for setores using MongoDB text indexes.
-   * Sorted by relevance and limited to top 5 basic fields.
+   * Falls back to regex on nome when text index is missing (local Mongo).
    * @param {string} q The search query.
    * @returns {Promise<Array<{ _id: ObjectId, tipo: string, nome: string }>>}
    */
   static async searchSetores(q) {
-    return await Setor.find(
-      { $text: { $search: q } },
-      { score: { $meta: "textScore" }, tipo: 1, nome: 1 }
-    )
-      .sort({ score: { $meta: "textScore" } })
-      .limit(5)
-      .select('_id tipo nome');
+    try {
+      return await Setor.find(
+        { $text: { $search: q } },
+        { score: { $meta: 'textScore' }, tipo: 1, nome: 1 }
+      )
+        .sort({ score: { $meta: 'textScore' } })
+        .limit(5)
+        .select('_id tipo nome');
+    } catch (error) {
+      if (!this.isMissingSearchIndex(error)) throw error;
+      const regex = new RegExp(this.escapeRegex(q), 'i');
+      return await Setor.find({ nome: regex }).limit(5).select('_id tipo nome');
+    }
   }
 
   /**
@@ -179,36 +248,55 @@ class SearchRepository {
 
   /**
    * Text search for funcionarios across multiple fields using Atlas Search.
+   * Falls back to regex when Atlas Search is unavailable.
    * Returns only _id to keep payload small for later expansion.
    * @param {string} q The search query.
    * @returns {Promise<Array<{ _id: ObjectId }>>}
    */
   static async searchFuncionariosDirectly(q) {
-    return await Funcionario.aggregate([
-      {
-        $search: {
-          index: 'busca_geral_funcionarios',
-          text: {
-            query: q,
-            path: [
-              'bairro',
-              'cidade',
-              'funcao',
-              'natureza',
-              'nome',
-              'referencia',
-              'tipo',
-            ],
+    try {
+      return await Funcionario.aggregate([
+        {
+          $search: {
+            index: 'busca_geral_funcionarios',
+            text: {
+              query: q,
+              path: [
+                'bairro',
+                'cidade',
+                'funcao',
+                'natureza',
+                'nome',
+                'referencia',
+                'tipo',
+              ],
+            },
           },
         },
-      },
-      { $limit: 20 },
-      {
-        $project: {
-          _id: 1
-        }
-      }
-    ]);
+        { $limit: 20 },
+        {
+          $project: {
+            _id: 1,
+          },
+        },
+      ]);
+    } catch (error) {
+      if (!this.isMissingSearchIndex(error)) throw error;
+      const regex = new RegExp(this.escapeRegex(q), 'i');
+      return await Funcionario.find({
+        $or: [
+          { nome: regex },
+          { funcao: regex },
+          { secretaria: regex },
+          { natureza: regex },
+          { referencia: regex },
+          { bairro: regex },
+          { cidade: regex },
+        ],
+      })
+        .limit(20)
+        .select('_id');
+    }
   }
 
   /**

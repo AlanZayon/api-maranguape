@@ -22,6 +22,32 @@ class FuncionarioController {
     }
   }
 
+  static async buscarParaSelecao(req, res, next) {
+    try {
+      const incluirFiltros =
+        req.query.incluirFiltros === '1' ||
+        req.query.incluirFiltros === 'true' ||
+        req.query.page === undefined ||
+        String(req.query.page) === '1';
+
+      const result = await FuncionarioService.buscarParaSelecao(
+        {
+          q: req.query.q || '',
+          natureza: req.query.natureza || '',
+          secretaria: req.query.secretaria || '',
+          funcao: req.query.funcao || '',
+          page: req.query.page || 1,
+          limit: req.query.limit || 15,
+          incluirFiltros,
+        },
+        resolveTenantId(req)
+      );
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async buscarFuncionariosPorCoordenadoria(req, res, next) {
     const { coordId } = req.params;
     try {
@@ -197,7 +223,11 @@ class FuncionarioController {
 
   static async exportCsv(req, res, next) {
     try {
-      const csv = await FuncionarioService.exportCsv(resolveTenantId(req));
+      const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+      const csv = await FuncionarioService.exportCsv(
+        resolveTenantId(req),
+        ids
+      );
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader(
         'Content-Disposition',

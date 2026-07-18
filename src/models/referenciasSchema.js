@@ -17,6 +17,20 @@ const referenceSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  /** Origem: funcionário da base ou pessoa externa. */
+  origem: {
+    type: String,
+    enum: ['funcionario', 'externa'],
+    default: 'externa',
+    index: true,
+  },
+  /** Preenchido quando a referência é um funcionário já cadastrado. */
+  funcionarioId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Funcionario',
+    sparse: true,
+    unique: true,
+  },
   tenantId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Tenant',

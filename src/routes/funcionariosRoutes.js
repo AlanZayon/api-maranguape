@@ -11,6 +11,7 @@ const router = express.Router();
 router.use(authenticate);
 
 router.get('/buscarFuncionarios', FuncionarioController.buscarFuncionarios);
+router.get('/para-selecao', FuncionarioController.buscarParaSelecao);
 router.get(
   '/buscarFuncionariosPorCoordenadoria/:coordId',
   FuncionarioController.buscarFuncionariosPorCoordenadoria
@@ -58,12 +59,12 @@ router.put(
   FuncionarioController.updateObservacoes
 );
 router.post(
-  '/relatorio-funcionarios/gerar',
-  RelatorioController.gerarRelatorio
+  '/relatorio-funcionarios/dados',
+  RelatorioController.obterDados
 );
 router.get('/buscarCargos', FuncionarioController.buscarCargos);
 router.get('/check-name', FuncionarioController.checkName);
-router.get('/export/csv', FuncionarioController.exportCsv);
+router.post('/export/csv', authorize('admin', 'user'), FuncionarioController.exportCsv);
 router.get('/:id/has-funcionarios', FuncionarioController.checkHasFuncionarios);
 router.post('/por-divisoes', FuncionarioController.buscarFuncionariosPorDivisoes);
 router.post('/por-setores', FuncionarioController.buscarFuncionariosPorDivisoes);

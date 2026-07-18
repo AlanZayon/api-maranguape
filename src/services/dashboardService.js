@@ -1,7 +1,9 @@
 const FuncionarioRepository = require('../repositories/FuncionariosRepository');
+const SetorRepository = require('../repositories/SetorRepository');
 const Simbologia = require('../models/limitesSimbologiaSchema');
 const Funcionario = require('../models/funcionariosSchema');
 const mongoose = require('mongoose');
+const organizarSetores = require('../utils/organizarSetores');
 
 class DashboardService {
   static tenantFilter(tenantId) {
@@ -13,65 +15,150 @@ class DashboardService {
     };
   }
 
-  static async getSummary(tenantId = null) {
+  /**
+   * Flatten organized tree into ranking rows using subtree headcount
+   * (self + all descendants). A parent with staffed children is not "vazio".
+   */
+  static flattenEstruturaRanking(nodes, acc = []) {
+    for (const node of nodes) {
+      acc.push({
+        id: String(node._id),
+        nome: node.nome,
+        total: node.quantidadeFuncionariosSubtree || 0,
+      });
+      if (node.subsetores?.length) {
+        this.flattenEstruturaRanking(node.subsetores, acc);
+      }
+    }
+    return acc;
+  }
+
+  static async getCotasSimbologia(tenantId = null) {
     const filter = this.tenantFilter(tenantId);
 
-    const [headcount, simbologias, ocupadasPorSimbologia, d30, d60, d90] =
-      await Promise.all([
-        FuncionarioRepository.countByTenant(tenantId),
-        Simbologia.find(filter).lean(),
-        Funcionario.aggregate([
-          {
-            $match: {
-              ...filter,
-              natureza: 'COMISSIONADO',
-            },
+    const [simbologias, ocupadasPorSimbologia] = await Promise.all([
+      Simbologia.find(filter).lean(),
+      Funcionario.aggregate([
+        {
+          $match: {
+            ...filter,
+            natureza: 'COMISSIONADO',
           },
-          {
-            $lookup: {
-              from: 'cargocomissionados',
-              localField: 'funcao',
-              foreignField: 'cargo',
-              as: 'cargoInfo',
-            },
+        },
+        {
+          $lookup: {
+            from: 'cargocomissionados',
+            localField: 'funcao',
+            foreignField: 'cargo',
+            as: 'cargoInfo',
           },
-          { $unwind: { path: '$cargoInfo', preserveNullAndEmptyArrays: false } },
-          {
-            $group: {
-              _id: '$cargoInfo.simbologia',
-              ocupadas: { $sum: 1 },
-            },
+        },
+        { $unwind: { path: '$cargoInfo', preserveNullAndEmptyArrays: false } },
+        {
+          $group: {
+            _id: '$cargoInfo.simbologia',
+            ocupadas: { $sum: 1 },
           },
-        ]),
-        FuncionarioRepository.countContratosAVencer(30, tenantId),
-        FuncionarioRepository.countContratosAVencer(60, tenantId),
-        FuncionarioRepository.countContratosAVencer(90, tenantId),
-      ]);
+        },
+      ]),
+    ]);
 
     const ocupadasMap = Object.fromEntries(
       ocupadasPorSimbologia.map((r) => [r._id, r.ocupadas])
     );
 
-    const cotasSimbologia = simbologias.map((s) => {
-      const disponiveis = s.limite || 0;
+    return simbologias.map((s) => {
+      const limite = s.limite || 0;
       const ocupadas = ocupadasMap[s.simbologia] || 0;
+      const disponiveis = Math.max(0, limite - ocupadas);
+      const pct = limite > 0 ? Math.round((ocupadas / limite) * 100) : 0;
       return {
         simbologia: s.simbologia,
-        vagas: disponiveis + ocupadas,
+        limite,
+        vagas: limite,
         ocupadas,
         disponiveis,
+        pct,
+        estourada: ocupadas > limite,
       };
     });
+  }
+
+  static async getEstruturaSnapshot(tenantId = null) {
+    const [setores, countsPorSetor] = await Promise.all([
+      SetorRepository.getAllSetores(tenantId),
+      FuncionarioRepository.countFuncionariosPorSetor(tenantId),
+    ]);
+
+    const tree = organizarSetores(setores, countsPorSetor);
+    const ranked = this.flattenEstruturaRanking(tree);
+
+    const totalSetores = ranked.length;
+    const setoresSemLotacao = ranked.filter((s) => s.total === 0).length;
+
+    ranked.sort((a, b) => b.total - a.total);
+
+    const setoresVazios = ranked
+      .filter((s) => s.total === 0)
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+      .slice(0, 8);
+
+    return {
+      totalSetores,
+      setoresSemLotacao,
+      topSetores: ranked.filter((s) => s.total > 0).slice(0, 8),
+      setoresVazios,
+    };
+  }
+
+  static async getSummary(tenantId = null) {
+    const [
+      headcount,
+      byNatureza,
+      bySecretaria,
+      cotasSimbologia,
+      contratosAVencer,
+      estrutura,
+    ] = await Promise.all([
+      FuncionarioRepository.countByTenant(tenantId),
+      FuncionarioRepository.groupByField('natureza', tenantId),
+      FuncionarioRepository.groupByField('secretaria', tenantId, { topN: 10 }),
+      this.getCotasSimbologia(tenantId),
+      FuncionarioRepository.countContratosBuckets(tenantId),
+      this.getEstruturaSnapshot(tenantId),
+    ]);
+
+    const cotasOcupadas = cotasSimbologia.reduce((s, c) => s + c.ocupadas, 0);
+    const cotasLimite = cotasSimbologia.reduce((s, c) => s + c.limite, 0);
+    const cotasPct =
+      cotasLimite > 0 ? Math.round((cotasOcupadas / cotasLimite) * 100) : 0;
 
     return {
       headcount,
+      byNatureza,
+      bySecretaria,
       cotasSimbologia,
-      contratosAVencer: {
-        next30Days: d30,
-        next60Days: d60,
-        next90Days: d90,
+      cotasResumo: {
+        ocupadas: cotasOcupadas,
+        limite: cotasLimite,
+        pct: cotasPct,
+        estouradas: cotasSimbologia.filter((c) => c.estourada).length,
       },
+      contratosAVencer,
+      estrutura,
+      generatedAt: new Date().toISOString(),
     };
+  }
+
+  static async getContratos(tenantId = null, { withinDays = 90, limit = 20 } = {}) {
+    return FuncionarioRepository.findContratosAVencer(tenantId, {
+      withinDays,
+      limit,
+    });
+  }
+
+  static async getPayroll(tenantId = null) {
+    return FuncionarioRepository.aggregatePayroll(tenantId);
   }
 }
 

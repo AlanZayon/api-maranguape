@@ -7,8 +7,14 @@ class ReferencesController {
       res.status(201).json({ message: 'Referência registrada com sucesso!' });
     } catch (error) {
       console.error('Erro ao registrar referência:', error.message);
-      const status = error.message.includes('obrigatór') ? 400 : 
-                    error.message.includes('existe') ? 400 : 500;
+      const status =
+        error.message.includes('obrigatór') ||
+        error.message.includes('existe') ||
+        error.message.includes('já está cadastrado') ||
+        error.message.includes('não encontrado') ||
+        error.message.includes('sem nome')
+          ? 400
+          : 500;
       res.status(status).json({ message: error.message });
     }
   }
