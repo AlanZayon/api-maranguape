@@ -280,22 +280,24 @@ class FuncionarioService {
   }
 
   static async createFuncionario(req) {
+    const tenantId = req.user?.tenantId || req.tenantId || null;
     const fotoUrlAWS = req.files?.foto
-      ? await awsUtils.uploadFile(req.files.foto[0], 'fotos')
+      ? await awsUtils.uploadFile(req.files.foto[0], 'fotos', tenantId)
       : null;
     const arquivoUrlAWS = req.files?.arquivo
-      ? await awsUtils.uploadFile(req.files.arquivo[0], 'arquivos')
+      ? await awsUtils.uploadFile(req.files.arquivo[0], 'arquivos', tenantId)
       : null;
 
     if (req.body.natureza === 'COMISSIONADO') {
-      const cargo = await CargoComissionado.buscarPorNome(req.body.funcao);
+      const cargo = await CargoComissionado.buscarPorNome(req.body.funcao, tenantId);
 
       if (!cargo) {
         throw new Error('Cargo comissionado não encontrado.');
       }
 
       const simbologia = await CargoComissionado.buscarPorSimbologia(
-        cargo.simbologia
+        cargo.simbologia,
+        tenantId
       );
 
       if (!simbologia) {
@@ -308,7 +310,8 @@ class FuncionarioService {
 
       await CargoComissionado.updateLimite(
         simbologia.simbologia,
-        simbologia.limite - 1
+        simbologia.limite - 1,
+        tenantId
       );
     }
 
@@ -325,13 +328,14 @@ class FuncionarioService {
       observacoes: normalizeObservacoes(req.body.observacoes || []),
       foto: fotoUrlAWS,
       arquivo: arquivoUrlAWS,
-      tenantId: req.user?.tenantId || req.tenantId || null,
+      tenantId,
       createdBy: req.user?.id || null,
     });
 
-    const setor = await SetorRepository.findSetorByCoordenadoria([
-      funcionarioCriado.setorId,
-    ]);
+    const setor = await SetorRepository.findSetorByCoordenadoria(
+      [funcionarioCriado.setorId],
+      tenantId
+    );
 
     await CacheService.clearCacheForFuncionarios(
       funcionarioCriado.setorId,
@@ -349,10 +353,13 @@ class FuncionarioService {
     };
   }
 
- static async execute(params, body, files) {
+ static async execute(params, body, files, tenantId = null) {
   const { id } = params;
 
-  const funcionarioExistente = await FuncionarioRepository.findByIds(id);
+  const funcionarioExistente = await FuncionarioRepository.findByIds(
+    id,
+    tenantId
+  );
   if (!funcionarioExistente || funcionarioExistente.length === 0) {
     throw new Error('Funcionário não encontrado');
   }
@@ -367,31 +374,38 @@ class FuncionarioService {
       atual.funcao,
       novaFuncao,
       atual.natureza,
-      novaNatureza
+      novaNatureza,
+      tenantId
     );
   }
 
   const fotoUrlAWS = files?.foto
-    ? await awsUtils.uploadFile(files.foto[0], 'fotos')
+    ? await awsUtils.uploadFile(files.foto[0], 'fotos', tenantId)
     : atual.foto;
 
   const arquivoUrlAWS = files?.arquivo
-    ? await awsUtils.uploadFile(files.arquivo[0], 'arquivos')
+    ? await awsUtils.uploadFile(files.arquivo[0], 'arquivos', tenantId)
     : atual.arquivo;
 
   const setorId = resolveSetorId(body) || lotacaoIdOf(atual);
   const { coordenadoria: _ignored, ...restBody } = body;
 
-  const funcionarioAtualizado = await FuncionarioRepository.update(id, {
-    ...restBody,
-    setorId,
-    foto: fotoUrlAWS,
-    arquivo: arquivoUrlAWS,
-  });
+  const funcionarioAtualizado = await FuncionarioRepository.update(
+    id,
+    {
+      ...restBody,
+      setorId,
+      foto: fotoUrlAWS,
+      arquivo: arquivoUrlAWS,
+      updatedBy: body.updatedBy || null,
+    },
+    tenantId
+  );
 
-  const setor = await SetorRepository.findSetorByCoordenadoria([
-    funcionarioAtualizado.setorId,
-  ]);
+  const setor = await SetorRepository.findSetorByCoordenadoria(
+    [funcionarioAtualizado.setorId],
+    tenantId
+  );
 
   await CacheService.clearCacheForFuncionarios(
     funcionarioAtualizado.setorId,
@@ -413,7 +427,7 @@ class FuncionarioService {
 }
 
 
-  static async deleteUsers(userIds) {
+  static async deleteUsers(userIds, tenantId = null) {
     try {
       const setoresAfetados = new Set();
       const batchPromises = [];
@@ -424,7 +438,10 @@ class FuncionarioService {
 
         batchPromises.push(
           (async () => {
-            const funcionarios = await FuncionarioRepository.findByIds(batch);
+            const funcionarios = await FuncionarioRepository.findByIds(
+              batch,
+              tenantId
+            );
 
             funcionarios.forEach((func) => {
               const lotacao = lotacaoIdOf(func);
@@ -438,7 +455,7 @@ class FuncionarioService {
               }
             });
 
-            return FuncionarioRepository.deleteBatch(batch);
+            return FuncionarioRepository.deleteBatch(batch, tenantId);
           })()
         );
       }
@@ -446,19 +463,26 @@ class FuncionarioService {
       await Promise.all(batchPromises);
 
       for (const [nomeFuncao, qtd] of cargosComissionados) {
-        const cargo = await CargoComissionado.buscarPorNome(nomeFuncao);
+        const cargo = await CargoComissionado.buscarPorNome(nomeFuncao, tenantId);
         if (cargo && cargo.simbologia) {
           const simbologiaAtual = await CargoComissionado.buscarPorSimbologia(
-            cargo.simbologia
+            cargo.simbologia,
+            tenantId
           );
           const novoLimite = (simbologiaAtual?.limite || 0) + qtd;
-          await CargoComissionado.updateLimite(cargo.simbologia, novoLimite);
+          await CargoComissionado.updateLimite(
+            cargo.simbologia,
+            novoLimite,
+            tenantId
+          );
         }
       }
 
       const setoresAfetadosArray = Array.from(setoresAfetados);
-      const setores =
-        await SetorRepository.findSetorByCoordenadoria(setoresAfetadosArray);
+      const setores = await SetorRepository.findSetorByCoordenadoria(
+        setoresAfetadosArray,
+        tenantId
+      );
 
       const setoresParaLimparCache = [...setoresAfetadosArray];
       setores.forEach((setor) => {
@@ -474,11 +498,11 @@ class FuncionarioService {
     }
   }
 
-  static async updateCoordinatoria(userIds, newCoordId) {
-    return this.updateLotacao(userIds, newCoordId);
+  static async updateCoordinatoria(userIds, newCoordId, tenantId = null) {
+    return this.updateLotacao(userIds, newCoordId, tenantId);
   }
 
-  static async updateLotacao(userIds, newSetorId) {
+  static async updateLotacao(userIds, newSetorId, tenantId = null) {
     if (!Array.isArray(userIds) || userIds.length === 0) {
       throw new AppError('Lista de usuários inválida.', 400, 'BAD_REQUEST');
     }
@@ -486,7 +510,7 @@ class FuncionarioService {
       throw new AppError('Setor de destino obrigatório.', 400, 'BAD_REQUEST');
     }
 
-    const users = await FuncionarioRepository.findByIds(userIds);
+    const users = await FuncionarioRepository.findByIds(userIds, tenantId);
     if (!users.length) {
       throw new AppError('Nenhum funcionário encontrado.', 404, 'NOT_FOUND');
     }
@@ -495,11 +519,13 @@ class FuncionarioService {
       .map((u) => lotacaoIdOf(u)?.toString())
       .filter((id) => id);
 
-    const oldSetores =
-      await SetorRepository.findSetorByCoordenadoria(oldSetorIds);
+    const oldSetores = await SetorRepository.findSetorByCoordenadoria(
+      oldSetorIds,
+      tenantId
+    );
     const parentIds = oldSetores.map((c) => c.parent).filter(Boolean);
 
-    await FuncionarioRepository.updateSetorId(userIds, newSetorId);
+    await FuncionarioRepository.updateSetorId(userIds, newSetorId, tenantId);
 
     try {
       await CacheService.clearCacheForCoordChange(
@@ -511,13 +537,13 @@ class FuncionarioService {
       console.error('Falha ao limpar cache após transferência:', cacheErr);
     }
 
-    return FuncionarioRepository.findByIds(userIds);
+    return FuncionarioRepository.findByIds(userIds, tenantId);
   }
 
-  static async updateObservacoes(userId, observacoes) {
-    const user = await FuncionarioRepository.findByIds(userId);
+  static async updateObservacoes(userId, observacoes, tenantId = null) {
+    const user = await FuncionarioRepository.findByIds(userId, tenantId);
 
-    if (!user) {
+    if (!user || !user.length) {
       throw new Error('Usuário não encontrado.');
     }
 
@@ -527,11 +553,15 @@ class FuncionarioService {
 
     const updatedFuncionario = await FuncionarioRepository.updateObservacoes(
       userId,
-      normalized
+      normalized,
+      tenantId
     );
 
     const lotacao = lotacaoIdOf(updatedFuncionario);
-    const setor = await SetorRepository.findSetorByCoordenadoria([lotacao]);
+    const setor = await SetorRepository.findSetorByCoordenadoria(
+      [lotacao],
+      tenantId
+    );
 
     await CacheService.clearCacheForFuncionarios(
       lotacao,

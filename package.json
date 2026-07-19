@@ -8,7 +8,10 @@
     "test": "jest --forceExit --detectOpenHandles --coverage",
     "lint": "eslint . --fix",
     "migrate:tenant": "node src/scripts/migrateTenant.js",
-    "migrate:lotacao": "node src/scripts/migrateCoordenadoriaToSubsetor.js"
+    "migrate:lotacao": "node src/scripts/migrateCoordenadoriaToSubsetor.js",
+    "verify:tenant": "node src/scripts/verifyTenantIsolation.js",
+    "seed:superadmin": "node src/scripts/seedSuperadmin.js",
+    "migrate:owners": "node src/scripts/promoteTenantOwners.js"
   },
   "keywords": [],
   "author": "",

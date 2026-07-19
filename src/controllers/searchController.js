@@ -1,10 +1,17 @@
 const SearchService = require('../services/searchService');
 
+function resolveTenantId(req) {
+  return req.user?.tenantId || req.tenantId || null;
+}
+
 class SearchController {
   static async autocomplete(req, res) {
     try {
       const termo = req.query.q;
-      const resultados = await SearchService.autocomplete(termo);
+      const resultados = await SearchService.autocomplete(
+        termo,
+        resolveTenantId(req)
+      );
       res.json(resultados);
     } catch (error) {
       console.error(error);
@@ -16,7 +23,10 @@ class SearchController {
   static async searchFuncionarios(req, res) {
     try {
       const { q } = req.query;
-      const resultados = await SearchService.searchFuncionarios(q);
+      const resultados = await SearchService.searchFuncionarios(
+        q,
+        resolveTenantId(req)
+      );
       res.json(resultados);
     } catch (error) {
       console.error(error);

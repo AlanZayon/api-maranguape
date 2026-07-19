@@ -1,7 +1,12 @@
 const express = require('express');
 const { funcionarioJoiSchema } = require('../validations/validateFuncionario');
 const { validate } = require('../middlewares/validate');
-const { authenticate, authorize } = require('../middlewares/auth');
+const {
+  authenticate,
+  authorize,
+  TENANT_STAFF,
+  TENANT_ELEVATED,
+} = require('../middlewares/auth');
 const FuncionarioController = require('../controllers/funcionariosController');
 const RelatorioController = require('../controllers/relatorioController');
 const upload = require('../config/multerConfig');
@@ -30,32 +35,36 @@ router.get(
 
 router.post(
   '/',
-  authorize('admin', 'user'),
+  authorize(...TENANT_STAFF),
   upload,
   validate(funcionarioJoiSchema),
   FuncionarioController.createFuncionario
 );
 router.put(
   '/edit-funcionario/:id',
-  authorize('admin', 'user'),
+  authorize(...TENANT_STAFF),
   upload,
   validate(funcionarioJoiSchema),
   FuncionarioController.updateFuncionario
 );
-router.delete('/delete-users', authorize('admin'), FuncionarioController.deleteUsers);
+router.delete(
+  '/delete-users',
+  authorize(...TENANT_ELEVATED),
+  FuncionarioController.deleteUsers
+);
 router.put(
   '/editar-coordenadoria-usuario',
-  authorize('admin', 'user'),
+  authorize(...TENANT_STAFF),
   FuncionarioController.updateCoordenadoria
 );
 router.put(
   '/editar-lotacao-usuario',
-  authorize('admin', 'user'),
+  authorize(...TENANT_STAFF),
   FuncionarioController.updateCoordenadoria
 );
 router.put(
   '/observacoes/:userId',
-  authorize('admin', 'user'),
+  authorize(...TENANT_STAFF),
   FuncionarioController.updateObservacoes
 );
 router.post(
@@ -64,7 +73,7 @@ router.post(
 );
 router.get('/buscarCargos', FuncionarioController.buscarCargos);
 router.get('/check-name', FuncionarioController.checkName);
-router.post('/export/csv', authorize('admin', 'user'), FuncionarioController.exportCsv);
+router.post('/export/csv', authorize(...TENANT_STAFF), FuncionarioController.exportCsv);
 router.get('/:id/has-funcionarios', FuncionarioController.checkHasFuncionarios);
 router.post('/por-divisoes', FuncionarioController.buscarFuncionariosPorDivisoes);
 router.post('/por-setores', FuncionarioController.buscarFuncionariosPorDivisoes);

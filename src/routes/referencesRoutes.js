@@ -1,19 +1,19 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize } = require('../middlewares/auth');
+const { authenticate, authorize, TENANT_ELEVATED } = require('../middlewares/auth');
 const ReferencesController = require('../controllers/referencesController');
 
 router.use(authenticate);
 
 router.post(
   '/register-reference',
-  authorize('admin'),
+  authorize(...TENANT_ELEVATED),
   ReferencesController.registerReference
 );
 router.get('/referencias-dados', ReferencesController.getReferences);
 router.delete(
   '/delete-referencia/:id',
-  authorize('admin'),
+  authorize(...TENANT_ELEVATED),
   ReferencesController.deleteReference
 );
 

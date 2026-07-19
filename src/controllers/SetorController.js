@@ -55,7 +55,12 @@ class SetorController {
     try {
       const { id } = req.params;
       const { nome } = req.body;
-      const result = await SetorService.renameSetor(id, nome, req.user?.id);
+      const result = await SetorService.renameSetor(
+        id,
+        nome,
+        req.user?.id,
+        resolveTenantId(req)
+      );
       res.status(200).json(result);
     } catch (err) {
       next(err);

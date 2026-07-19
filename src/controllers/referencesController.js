@@ -1,9 +1,17 @@
 const ReferencesService = require('../services/referencesService');
 
+function resolveTenantId(req) {
+  return req.user?.tenantId || req.tenantId || null;
+}
+
 class ReferencesController {
   static async registerReference(req, res) {
     try {
-      await ReferencesService.registerReference(req.body);
+      await ReferencesService.registerReference(
+        req.body,
+        resolveTenantId(req),
+        req.user?.id || null
+      );
       res.status(201).json({ message: 'Referência registrada com sucesso!' });
     } catch (error) {
       console.error('Erro ao registrar referência:', error.message);
@@ -21,7 +29,9 @@ class ReferencesController {
 
   static async getReferences(req, res) {
     try {
-      const references = await ReferencesService.getReferences();
+      const references = await ReferencesService.getReferences(
+        resolveTenantId(req)
+      );
       res.json({ referencias: references });
     } catch (error) {
       console.error('Erro ao obter referências:', error.message);
@@ -31,7 +41,10 @@ class ReferencesController {
 
   static async deleteReference(req, res) {
     try {
-      await ReferencesService.deleteReference(req.params.id);
+      await ReferencesService.deleteReference(
+        req.params.id,
+        resolveTenantId(req)
+      );
       res.status(200).json({ message: 'Referência deletada com sucesso!' });
     } catch (error) {
       console.error('Erro ao deletar referência:', error.message);

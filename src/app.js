@@ -24,9 +24,39 @@ const allowedOrigins = [
   ...(process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : []),
 ];
 
+const baseDomain = (process.env.BASE_DOMAIN || '').toLowerCase().replace(/^\./, '');
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+
+  try {
+    const { hostname, protocol } = new URL(origin);
+    if (protocol !== 'http:' && protocol !== 'https:') return false;
+
+    if (hostname.endsWith('.localhost') || hostname === 'localhost') {
+      return true;
+    }
+
+    if (baseDomain) {
+      if (hostname === baseDomain || hostname === `www.${baseDomain}`) {
+        return true;
+      }
+      const subdomainPattern = new RegExp(
+        `^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.${baseDomain.replace(/\./g, '\\.')}$`
+      );
+      if (subdomainPattern.test(hostname)) return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
+}
+
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+    if (isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));

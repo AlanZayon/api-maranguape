@@ -1,7 +1,7 @@
 // Data-access layer for search queries against MongoDB models.
 const Funcionario = require('../models/funcionariosSchema');
 const Setor = require('../models/setoresSchema');
-const { ObjectId } = require('mongodb');
+const { tenantFilter } = require('../utils/tenantHelpers');
 
 class SearchRepository {
   static escapeRegex(str) {
@@ -20,32 +20,31 @@ class SearchRepository {
     );
   }
 
-  /**
-   * Recursively collect a setor's id and all descendant setor ids.
-   * @param {ObjectId|string} parentId The parent setor id.
-   * @returns {Promise<Array<ObjectId>>} List including parentId and all descendants.
-   */
-  static async findChildIds(parentId) {
-    const children = await Setor.find({ parent: parentId });
+  static tenantMatchStage(tenantId) {
+    const filter = tenantFilter(tenantId);
+    if (!Object.keys(filter).length) return null;
+    return { $match: filter };
+  }
+
+  static async findChildIds(parentId, tenantId = null) {
+    const children = await Setor.find({
+      parent: parentId,
+      ...tenantFilter(tenantId),
+    });
     let ids = [parentId];
 
     for (const child of children) {
-      const childIds = await this.findChildIds(child._id);
+      const childIds = await this.findChildIds(child._id, tenantId);
       ids = [...ids, ...childIds];
     }
 
     return ids;
   }
 
-  /**
-   * Suggest funcionario-related terms from multiple fields using Atlas Search autocomplete.
-   * Falls back to regex when Atlas Search is unavailable (e.g. local MongoDB).
-   * @param {string} termo The input text to complete.
-   * @returns {Promise<Array<{ termo: { nome: string, tipo: string } }>>}
-   */
-  static async autocompleteFuncionarios(termo) {
+  static async autocompleteFuncionarios(termo, tenantId = null) {
+    const tenantStage = this.tenantMatchStage(tenantId);
     try {
-      return await Funcionario.aggregate([
+      const pipeline = [
         {
           $search: {
             index: 'autocomplete_funcionarios',
@@ -62,6 +61,9 @@ class SearchRepository {
             },
           },
         },
+      ];
+      if (tenantStage) pipeline.push(tenantStage);
+      pipeline.push(
         { $limit: 10 },
         {
           $project: {
@@ -133,17 +135,19 @@ class SearchRepository {
               ],
             },
           },
-        },
-      ]);
+        }
+      );
+      return await Funcionario.aggregate(pipeline);
     } catch (error) {
       if (!this.isMissingSearchIndex(error)) throw error;
-      return this.autocompleteFuncionariosRegex(termo);
+      return this.autocompleteFuncionariosRegex(termo, tenantId);
     }
   }
 
-  static async autocompleteFuncionariosRegex(termo) {
+  static async autocompleteFuncionariosRegex(termo, tenantId = null) {
     const regex = new RegExp(this.escapeRegex(termo), 'i');
     const funcionarios = await Funcionario.find({
+      ...tenantFilter(tenantId),
       $or: [
         { nome: regex },
         { funcao: regex },
@@ -169,15 +173,10 @@ class SearchRepository {
     });
   }
 
-  /**
-   * Suggest setor names using Atlas Search autocomplete.
-   * Falls back to regex when Atlas Search is unavailable.
-   * @param {string} termo The input text to complete.
-   * @returns {Promise<Array<{ termo: { nome: string, tipo: string } }>>}
-   */
-  static async autocompleteSetores(termo) {
+  static async autocompleteSetores(termo, tenantId = null) {
+    const tenantStage = this.tenantMatchStage(tenantId);
     try {
-      return await Setor.aggregate([
+      const pipeline = [
         {
           $search: {
             index: 'autocomplete_setores',
@@ -186,6 +185,9 @@ class SearchRepository {
             },
           },
         },
+      ];
+      if (tenantStage) pipeline.push(tenantStage);
+      pipeline.push(
         { $limit: 10 },
         {
           $project: {
@@ -194,12 +196,16 @@ class SearchRepository {
               tipo: '$tipo',
             },
           },
-        },
-      ]);
+        }
+      );
+      return await Setor.aggregate(pipeline);
     } catch (error) {
       if (!this.isMissingSearchIndex(error)) throw error;
       const regex = new RegExp(this.escapeRegex(termo), 'i');
-      const setores = await Setor.find({ nome: regex })
+      const setores = await Setor.find({
+        nome: regex,
+        ...tenantFilter(tenantId),
+      })
         .limit(10)
         .select('nome tipo')
         .lean();
@@ -209,16 +215,10 @@ class SearchRepository {
     }
   }
 
-  /**
-   * Full-text search for setores using MongoDB text indexes.
-   * Falls back to regex on nome when text index is missing (local Mongo).
-   * @param {string} q The search query.
-   * @returns {Promise<Array<{ _id: ObjectId, tipo: string, nome: string }>>}
-   */
-  static async searchSetores(q) {
+  static async searchSetores(q, tenantId = null) {
     try {
       return await Setor.find(
-        { $text: { $search: q } },
+        { $text: { $search: q }, ...tenantFilter(tenantId) },
         { score: { $meta: 'textScore' }, tipo: 1, nome: 1 }
       )
         .sort({ score: { $meta: 'textScore' } })
@@ -227,35 +227,31 @@ class SearchRepository {
     } catch (error) {
       if (!this.isMissingSearchIndex(error)) throw error;
       const regex = new RegExp(this.escapeRegex(q), 'i');
-      return await Setor.find({ nome: regex }).limit(5).select('_id tipo nome');
+      return await Setor.find({
+        nome: regex,
+        ...tenantFilter(tenantId),
+      })
+        .limit(5)
+        .select('_id tipo nome');
     }
   }
 
-  /**
-   * Find funcionarios IDs under a specific setor/subsetor or a set of them.
-   * Accepts an ObjectId or a MongoDB $in query shape.
-   * @param {ObjectId|{ $in: Array<ObjectId> }} setorId Id or filter for setorId(s).
-   * @returns {Promise<Array<{ _id: ObjectId }>>}
-   */
-  static async findFuncionariosBySetorId(setorId) {
-    return await Funcionario.find({ setorId }).select('_id');
+  static async findFuncionariosBySetorId(setorId, tenantId = null) {
+    return await Funcionario.find({
+      setorId,
+      ...tenantFilter(tenantId),
+    }).select('_id');
   }
 
   /** @deprecated use findFuncionariosBySetorId */
-  static async findFuncionariosByCoordenadoria(coordenadoriaId) {
-    return this.findFuncionariosBySetorId(coordenadoriaId);
+  static async findFuncionariosByCoordenadoria(coordenadoriaId, tenantId = null) {
+    return this.findFuncionariosBySetorId(coordenadoriaId, tenantId);
   }
 
-  /**
-   * Text search for funcionarios across multiple fields using Atlas Search.
-   * Falls back to regex when Atlas Search is unavailable.
-   * Returns only _id to keep payload small for later expansion.
-   * @param {string} q The search query.
-   * @returns {Promise<Array<{ _id: ObjectId }>>}
-   */
-  static async searchFuncionariosDirectly(q) {
+  static async searchFuncionariosDirectly(q, tenantId = null) {
+    const tenantStage = this.tenantMatchStage(tenantId);
     try {
-      return await Funcionario.aggregate([
+      const pipeline = [
         {
           $search: {
             index: 'busca_geral_funcionarios',
@@ -273,17 +269,15 @@ class SearchRepository {
             },
           },
         },
-        { $limit: 20 },
-        {
-          $project: {
-            _id: 1,
-          },
-        },
-      ]);
+      ];
+      if (tenantStage) pipeline.push(tenantStage);
+      pipeline.push({ $limit: 20 }, { $project: { _id: 1 } });
+      return await Funcionario.aggregate(pipeline);
     } catch (error) {
       if (!this.isMissingSearchIndex(error)) throw error;
       const regex = new RegExp(this.escapeRegex(q), 'i');
       return await Funcionario.find({
+        ...tenantFilter(tenantId),
         $or: [
           { nome: regex },
           { funcao: regex },
@@ -299,13 +293,11 @@ class SearchRepository {
     }
   }
 
-  /**
-   * Fetch funcionarios documents by a list of ids with a sane default limit.
-   * @param {Array<ObjectId>} ids Unique funcionario ids.
-   * @returns {Promise<Array<object>>}
-   */
-  static async getFuncionariosByIds(ids) {
-    return await Funcionario.find({ _id: { $in: ids } }).limit(20);
+  static async getFuncionariosByIds(ids, tenantId = null) {
+    return await Funcionario.find({
+      _id: { $in: ids },
+      ...tenantFilter(tenantId),
+    }).limit(20);
   }
 }
 

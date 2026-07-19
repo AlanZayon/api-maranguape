@@ -124,7 +124,8 @@ class FuncionarioController {
       const response = await FuncionarioService.execute(
         req.params,
         req.body,
-        req.files
+        req.files,
+        resolveTenantId(req)
       );
       res.status(response.status).json(response.data);
     } catch (error) {
@@ -142,7 +143,10 @@ class FuncionarioController {
         return res.status(400).json({ error: 'Lista de usuários inválida.' });
       }
 
-      const result = await FuncionarioService.deleteUsers(userIds);
+      const result = await FuncionarioService.deleteUsers(
+        userIds,
+        resolveTenantId(req)
+      );
       res.status(200).json(result);
     } catch (err) {
       next(err);
@@ -155,7 +159,8 @@ class FuncionarioController {
         req.body.setorId || req.body.coordenadoriaId || req.body.lotacaoId;
       const result = await FuncionarioService.updateLotacao(
         req.body.usuariosIds,
-        destino
+        destino,
+        resolveTenantId(req)
       );
       res.status(200).json(result);
     } catch (err) {
@@ -170,7 +175,8 @@ class FuncionarioController {
     try {
       const user = await FuncionarioService.updateObservacoes(
         userId,
-        observacoes
+        observacoes,
+        resolveTenantId(req)
       );
 
       return res.status(200).json({

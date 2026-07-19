@@ -5,6 +5,35 @@ class AuthRepository {
     return await User.findOne({ id });
   }
 
+  /**
+   * Login lookup: prefer exact `id` field, then username scoped to tenant.
+   * Superadmins (tenantId null) match by id or username without tenant.
+   */
+  static async findUserForLogin(loginId, tenantId = null) {
+    if (!loginId) return null;
+
+    const byId = await User.findOne({ id: loginId });
+    if (byId) return byId;
+
+    if (tenantId) {
+      const scoped = await User.findOne({
+        username: loginId,
+        tenantId,
+      });
+      if (scoped) return scoped;
+    }
+
+    // Platform / legacy: username with null tenant (superadmin) or single match
+    const byUsername = await User.find({ username: loginId }).limit(2);
+    if (byUsername.length === 1) return byUsername[0];
+    if (tenantId) {
+      return (
+        byUsername.find((u) => String(u.tenantId) === String(tenantId)) || null
+      );
+    }
+    return byUsername.find((u) => u.role === 'superadmin') || null;
+  }
+
   static async findUserByMongoId(_id) {
     return await User.findById(_id);
   }

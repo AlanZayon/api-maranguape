@@ -4,17 +4,21 @@ const CacheService = require('../services/CacheService');
 const AppError = require('../utils/AppError');
 const { normalizarTexto } = require('../validations/validateCargoComissionado');
 const redisClient = require('../config/redisClient');
+const { cacheKey } = require('../utils/tenantHelpers');
 
 class CargoComissionadoService {
-  static async invalidateCache() {
-    await redisClient.del('todos:cargosComissionados');
+  static async invalidateCache(tenantId = null) {
+    await redisClient.del(cacheKey(tenantId, 'todos:cargosComissionados'));
+    if (tenantId) {
+      await redisClient.del('todos:cargosComissionados');
+    }
   }
 
-  static async listarCargos() {
+  static async listarCargos(tenantId = null) {
     return await CacheService.getOrSetCache(
-      `todos:cargosComissionados`,
+      cacheKey(tenantId, 'todos:cargosComissionados'),
       async () => {
-        return await CargoComissionadoRepository.buscarTodos();
+        return await CargoComissionadoRepository.buscarTodos(tenantId);
       }
     );
   }
@@ -26,7 +30,8 @@ class CargoComissionadoService {
     userId,
   }) {
     const existing = await CargoComissionadoRepository.buscarPorSimbologia(
-      simbologia
+      simbologia,
+      tenantId
     );
 
     if (!existing && (limite === undefined || limite === null)) {
@@ -65,7 +70,10 @@ class CargoComissionadoService {
         ? Number(payload.limite)
         : undefined;
 
-    const existente = await CargoComissionadoRepository.buscarPorNome(cargo);
+    const existente = await CargoComissionadoRepository.buscarPorNome(
+      cargo,
+      tenantId
+    );
     if (existente) {
       throw new AppError(
         `Já existe um cargo comissionado com o nome "${cargo}".`,
@@ -86,12 +94,12 @@ class CargoComissionadoService {
       updatedBy: userId,
     });
 
-    await this.invalidateCache();
+    await this.invalidateCache(tenantId);
     return created;
   }
 
   static async atualizar(id, payload, { tenantId = null, userId = null } = {}) {
-    const atual = await CargoComissionadoRepository.buscarPorId(id);
+    const atual = await CargoComissionadoRepository.buscarPorId(id, tenantId);
     if (!atual) {
       throw new AppError('Cargo comissionado não encontrado.', 404, 'NOT_FOUND');
     }
@@ -106,7 +114,10 @@ class CargoComissionadoService {
         : undefined;
 
     if (cargo !== atual.cargo) {
-      const conflito = await CargoComissionadoRepository.buscarPorNome(cargo);
+      const conflito = await CargoComissionadoRepository.buscarPorNome(
+        cargo,
+        tenantId
+      );
       if (conflito && String(conflito._id) !== String(id)) {
         throw new AppError(
           `Já existe um cargo comissionado com o nome "${cargo}".`,
@@ -118,26 +129,30 @@ class CargoComissionadoService {
 
     await this.garantirSimbologia({ simbologia, limite, tenantId, userId });
 
-    const updated = await CargoComissionadoRepository.atualizar(id, {
-      tipo,
-      cargo,
-      simbologia,
-      aDefinir,
-      updatedBy: userId,
-    });
+    const updated = await CargoComissionadoRepository.atualizar(
+      id,
+      {
+        tipo,
+        cargo,
+        simbologia,
+        aDefinir,
+        updatedBy: userId,
+      },
+      tenantId
+    );
 
-    await this.invalidateCache();
+    await this.invalidateCache(tenantId);
     return updated;
   }
 
-  static async remover(id) {
-    const atual = await CargoComissionadoRepository.buscarPorId(id);
+  static async remover(id, { tenantId = null } = {}) {
+    const atual = await CargoComissionadoRepository.buscarPorId(id, tenantId);
     if (!atual) {
       throw new AppError('Cargo comissionado não encontrado.', 404, 'NOT_FOUND');
     }
 
-    await CargoComissionadoRepository.remover(id);
-    await this.invalidateCache();
+    await CargoComissionadoRepository.remover(id, tenantId);
+    await this.invalidateCache(tenantId);
     return { message: 'Cargo comissionado removido com sucesso.' };
   }
 
@@ -232,15 +247,22 @@ class CargoComissionadoService {
           userId,
         });
 
-        const existente = await CargoComissionadoRepository.buscarPorNome(cargo);
+        const existente = await CargoComissionadoRepository.buscarPorNome(
+          cargo,
+          tenantId
+        );
         if (existente) {
-          await CargoComissionadoRepository.atualizar(existente._id, {
-            tipo,
-            cargo,
-            simbologia,
-            aDefinir,
-            updatedBy: userId,
-          });
+          await CargoComissionadoRepository.atualizar(
+            existente._id,
+            {
+              tipo,
+              cargo,
+              simbologia,
+              aDefinir,
+              updatedBy: userId,
+            },
+            tenantId
+          );
           updated.push({ row: rowNumber, cargo });
         } else {
           await CargoComissionadoRepository.criar({
@@ -262,7 +284,7 @@ class CargoComissionadoService {
       }
     }
 
-    await this.invalidateCache();
+    await this.invalidateCache(tenantId);
 
     return {
       created: created.length,

@@ -2,24 +2,30 @@ const ReferencesRepository = require('../repositories/referencesRepository');
 const FuncionarioRepository = require('../repositories/FuncionariosRepository');
 
 class ReferencesService {
-  static async registerReference(payload = {}) {
+  static async registerReference(payload = {}, tenantId = null, userId = null) {
     const { funcionarioId, name, cargo, telefone } = payload;
 
     if (funcionarioId) {
-      return this.registerFromFuncionario(funcionarioId);
+      return this.registerFromFuncionario(funcionarioId, tenantId, userId);
     }
 
-    return this.registerExterna({ name, cargo, telefone });
+    return this.registerExterna({ name, cargo, telefone }, tenantId, userId);
   }
 
-  static async registerFromFuncionario(funcionarioId) {
-    const funcionario = await FuncionarioRepository.findById(funcionarioId);
+  static async registerFromFuncionario(funcionarioId, tenantId = null, userId = null) {
+    const funcionario = await FuncionarioRepository.findById(
+      funcionarioId,
+      tenantId
+    );
     if (!funcionario) {
       throw new Error('Funcionário não encontrado!');
     }
 
     const alreadyLinked =
-      await ReferencesRepository.findReferenceByFuncionarioId(funcionarioId);
+      await ReferencesRepository.findReferenceByFuncionarioId(
+        funcionarioId,
+        tenantId
+      );
     if (alreadyLinked) {
       throw new Error('Este funcionário já está cadastrado como referência!');
     }
@@ -29,7 +35,10 @@ class ReferencesService {
       throw new Error('Funcionário sem nome válido!');
     }
 
-    const existingByName = await ReferencesRepository.findReferenceByName(name);
+    const existingByName = await ReferencesRepository.findReferenceByName(
+      name,
+      tenantId
+    );
     if (existingByName) {
       throw new Error('Já existe uma referência com este nome!');
     }
@@ -40,13 +49,15 @@ class ReferencesService {
       telefone: funcionario.telefone?.trim() || undefined,
       origem: 'funcionario',
       funcionarioId: funcionario._id,
+      tenantId,
+      createdBy: userId,
     });
 
-    await this.pushToCache(newReference);
+    await this.pushToCache(newReference, tenantId);
     return newReference;
   }
 
-  static async registerExterna({ name, cargo, telefone }) {
+  static async registerExterna({ name, cargo, telefone }, tenantId = null, userId = null) {
     if (!name) {
       throw new Error('Todos os campos são obrigatórios!');
     }
@@ -55,7 +66,10 @@ class ReferencesService {
     cargo = cargo?.toUpperCase();
     telefone = telefone?.trim();
 
-    const existingReference = await ReferencesRepository.findReferenceByName(name);
+    const existingReference = await ReferencesRepository.findReferenceByName(
+      name,
+      tenantId
+    );
     if (existingReference) {
       throw new Error('Já existe uma referência com este nome e sobrenome!');
     }
@@ -65,40 +79,48 @@ class ReferencesService {
       cargo,
       telefone,
       origem: 'externa',
+      tenantId,
+      createdBy: userId,
     });
 
-    await this.pushToCache(newReference);
+    await this.pushToCache(newReference, tenantId);
     return newReference;
   }
 
-  static async pushToCache(newReference) {
+  static async pushToCache(newReference, tenantId = null) {
+    const key = ReferencesRepository.cacheKeyFor(tenantId);
     const currentCache =
-      (await ReferencesRepository.getRedisCache('referencias-dados')) || [];
+      (await ReferencesRepository.getRedisCache(key)) || [];
     currentCache.push(newReference);
-    await ReferencesRepository.setRedisCache('referencias-dados', currentCache);
+    await ReferencesRepository.setRedisCache(key, currentCache);
   }
 
-  static async getReferences() {
-    const cacheData = await ReferencesRepository.getRedisCache('referencias-dados');
+  static async getReferences(tenantId = null) {
+    const key = ReferencesRepository.cacheKeyFor(tenantId);
+    const cacheData = await ReferencesRepository.getRedisCache(key);
     if (cacheData) {
       return cacheData;
     }
 
-    const references = await ReferencesRepository.getAllReferences();
-    await ReferencesRepository.setRedisCache('referencias-dados', references);
+    const references = await ReferencesRepository.getAllReferences(tenantId);
+    await ReferencesRepository.setRedisCache(key, references);
     return references;
   }
 
-  static async deleteReference(id) {
-    const reference = await ReferencesRepository.deleteReferenceById(id);
+  static async deleteReference(id, tenantId = null) {
+    const reference = await ReferencesRepository.deleteReferenceById(
+      id,
+      tenantId
+    );
     if (!reference) {
       throw new Error('Referência não encontrada!');
     }
 
+    const key = ReferencesRepository.cacheKeyFor(tenantId);
     let currentCache =
-      (await ReferencesRepository.getRedisCache('referencias-dados')) || [];
+      (await ReferencesRepository.getRedisCache(key)) || [];
     currentCache = currentCache.filter((ref) => ref._id.toString() !== id);
-    await ReferencesRepository.setRedisCache('referencias-dados', currentCache);
+    await ReferencesRepository.setRedisCache(key, currentCache);
 
     return reference;
   }

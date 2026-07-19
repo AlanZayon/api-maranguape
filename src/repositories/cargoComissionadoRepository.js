@@ -1,61 +1,102 @@
 const CargoComissionado = require('../models/CargoComissionadoSchema');
 const Simbologia = require('../models/limitesSimbologiaSchema');
+const { tenantFilter, toObjectId } = require('../utils/tenantHelpers');
 
 class CargoComissionadoRepository {
-  static async buscarTodos() {
-    return await CargoComissionado.aggregate([
+  static async buscarTodos(tenantId = null) {
+    const match = tenantFilter(tenantId);
+    const pipeline = [];
+    if (Object.keys(match).length) {
+      pipeline.push({ $match: match });
+    }
+    const lookupMatch = tenantId
+      ? {
+          $expr: {
+            $and: [
+              { $eq: ['$simbologia', '$$simb'] },
+              { $eq: ['$tenantId', toObjectId(tenantId)] },
+            ],
+          },
+        }
+      : {
+          $expr: { $eq: ['$simbologia', '$$simb'] },
+        };
+    pipeline.push(
       {
         $lookup: {
           from: 'simbologias',
-          localField: 'simbologia',
-          foreignField: 'simbologia',
+          let: { simb: '$simbologia' },
+          pipeline: [{ $match: lookupMatch }],
           as: 'simbologiaInfo',
         },
       },
       {
-        $unwind: '$simbologiaInfo',
+        $unwind: {
+          path: '$simbologiaInfo',
+          preserveNullAndEmptyArrays: true,
+        },
       },
-      { $sort: { cargo: 1 } },
-    ]);
+      { $sort: { cargo: 1 } }
+    );
+    return await CargoComissionado.aggregate(pipeline);
   }
 
-  static async buscarPorId(id) {
-    return await CargoComissionado.findById(id);
+  static async buscarPorId(id, tenantId = null) {
+    return await CargoComissionado.findOne({
+      _id: id,
+      ...tenantFilter(tenantId),
+    });
   }
 
-  static async buscarPorNome(nome) {
-    return await CargoComissionado.findOne({ cargo: nome });
+  static async buscarPorNome(nome, tenantId = null) {
+    return await CargoComissionado.findOne({
+      cargo: nome,
+      ...tenantFilter(tenantId),
+    });
   }
 
   static async criar(data) {
     return await CargoComissionado.create(data);
   }
 
-  static async atualizar(id, data) {
-    return await CargoComissionado.findByIdAndUpdate(id, data, {
-      new: true,
-      runValidators: true,
+  static async atualizar(id, data, tenantId = null) {
+    return await CargoComissionado.findOneAndUpdate(
+      { _id: id, ...tenantFilter(tenantId) },
+      data,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+  }
+
+  static async remover(id, tenantId = null) {
+    return await CargoComissionado.findOneAndDelete({
+      _id: id,
+      ...tenantFilter(tenantId),
     });
   }
 
-  static async remover(id) {
-    return await CargoComissionado.findByIdAndDelete(id);
+  static async contarPorSimbologia(simbologia, tenantId = null) {
+    return await CargoComissionado.countDocuments({
+      simbologia,
+      ...tenantFilter(tenantId),
+    });
   }
 
-  static async contarPorSimbologia(simbologia) {
-    return await CargoComissionado.countDocuments({ simbologia });
-  }
-
-  static async updateLimit(cargoId, novoLimite) {
-    return await CargoComissionado.findByIdAndUpdate(
-      { _id: cargoId },
+  static async updateLimit(cargoId, novoLimite, tenantId = null) {
+    return await CargoComissionado.findOneAndUpdate(
+      { _id: cargoId, ...tenantFilter(tenantId) },
       { limite: novoLimite },
       { new: true }
     );
   }
 
-  static async buscarPorSimbologia(simbologia) {
-    return await Simbologia.findOne({ simbologia });
+  static async buscarPorSimbologia(simbologia, tenantId = null) {
+    return await Simbologia.findOne({
+      simbologia,
+      ...tenantFilter(tenantId),
+    });
   }
 
   static async upsertSimbologia({
@@ -64,7 +105,10 @@ class CargoComissionadoRepository {
     tenantId = null,
     userId = null,
   }) {
-    const existing = await Simbologia.findOne({ simbologia });
+    const existing = await Simbologia.findOne({
+      simbologia,
+      ...tenantFilter(tenantId),
+    });
 
     if (existing) {
       if (limite !== undefined && limite !== null) {
@@ -82,15 +126,15 @@ class CargoComissionadoRepository {
     return await Simbologia.create({
       simbologia,
       limite,
-      tenantId,
+      tenantId: toObjectId(tenantId),
       createdBy: userId || null,
       updatedBy: userId || null,
     });
   }
 
-  static async updateLimite(simbologia, novoLimite) {
+  static async updateLimite(simbologia, novoLimite, tenantId = null) {
     return await Simbologia.findOneAndUpdate(
-      { simbologia },
+      { simbologia, ...tenantFilter(tenantId) },
       { limite: novoLimite },
       { new: true }
     );

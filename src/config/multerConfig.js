@@ -1,18 +1,25 @@
 // config/multerConfig.js
 const multer = require('multer');
 
-// Configuração do Multer para armazenamento em memória
 const storage = multer.memoryStorage();
 
-// Configuração do Multer para aceitar múltiplos arquivos: foto e arquivo (PDF)
+const limits = {
+  fileSize: 10 * 1024 * 1024,
+};
+
 const upload = multer({
   storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // Limite de 10MB para os arquivos (pode ajustar conforme necessário)
-  },
+  limits,
 }).fields([
   { name: 'foto', maxCount: 1 },
   { name: 'arquivo', maxCount: 1 },
 ]);
 
+const uploadSingle = multer({
+  storage,
+  limits,
+}).single('file');
+
 module.exports = upload;
+module.exports.uploadSingle = uploadSingle;
+module.exports.multerInstance = multer({ storage, limits });

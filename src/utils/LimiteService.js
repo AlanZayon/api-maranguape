@@ -1,30 +1,42 @@
 const CargoRepository = require('../repositories/cargoComissionadoRepository');
+
 class LimiteService {
   static async atualizarLimitesDeFuncao(
     antigaFuncaoNome,
     novaFuncaoNome,
     antigaNatureza,
-    novaNatureza
+    novaNatureza,
+    tenantId = null
   ) {
     const [antigaFuncao, novaFuncao] = await Promise.all([
-      CargoRepository.buscarPorNome(antigaFuncaoNome),
-      CargoRepository.buscarPorNome(novaFuncaoNome),
+      CargoRepository.buscarPorNome(antigaFuncaoNome, tenantId),
+      CargoRepository.buscarPorNome(novaFuncaoNome, tenantId),
     ]);
 
-    if (antigaNatureza === 'COMISSIONADO') {
+    if (antigaNatureza === 'COMISSIONADO' && antigaFuncao?.simbologia) {
       const simbologia = await CargoRepository.buscarPorSimbologia(
-        antigaFuncao.simbologia
+        antigaFuncao.simbologia,
+        tenantId
       );
       const novoLimite = (simbologia?.limite || 0) + 1;
-      await CargoRepository.updateLimite(simbologia.simbologia, novoLimite);
+      await CargoRepository.updateLimite(
+        simbologia.simbologia,
+        novoLimite,
+        tenantId
+      );
     }
 
-    if (novaNatureza === 'COMISSIONADO') {
+    if (novaNatureza === 'COMISSIONADO' && novaFuncao?.simbologia) {
       const simbologia = await CargoRepository.buscarPorSimbologia(
-        novaFuncao.simbologia
+        novaFuncao.simbologia,
+        tenantId
       );
       const novoLimite = (simbologia?.limite || 0) - 1;
-      await CargoRepository.updateLimite(simbologia.simbologia, novoLimite);
+      await CargoRepository.updateLimite(
+        simbologia.simbologia,
+        novoLimite,
+        tenantId
+      );
     }
   }
 }

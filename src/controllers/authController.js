@@ -15,7 +15,12 @@ class AuthController {
     const tokenLogin = req.cookies.authToken;
 
     try {
-      const { token, user } = await AuthService.login(id, password, tokenLogin);
+      const { token, user } = await AuthService.login(
+        id,
+        password,
+        tokenLogin,
+        req.tenantId || null
+      );
 
       res.cookie('authToken', token, {
         ...authCookieOptions,

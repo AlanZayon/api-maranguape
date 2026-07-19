@@ -4,7 +4,7 @@ const dbFuncionarios = require('../config/Mongoose/funcionariosConnection');
 const db = dbFuncionarios();
 
 const funcionarioSchema = new mongoose.Schema({
-  nome: { type: String, required: true, unique: true },
+  nome: { type: String, required: true },
   foto: { type: String, default: null },
   secretaria: { type: String, required: true },
   funcao: { type: String, required: true },
@@ -72,6 +72,8 @@ const funcionarioSchema = new mongoose.Schema({
   },
   createdAt: { type: Date, default: Date.now },
 });
+
+funcionarioSchema.index({ tenantId: 1, nome: 1 }, { unique: true });
 
 const Funcionario = db.model('Funcionario', funcionarioSchema);
 

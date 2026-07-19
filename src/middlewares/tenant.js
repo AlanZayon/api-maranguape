@@ -1,20 +1,45 @@
 const Tenant = require('../models/tenantSchema');
+const {
+  extractSubdomain,
+  isReservedSubdomain,
+} = require('../utils/tenantHelpers');
 
 /**
- * Resolves tenant from X-Tenant-Slug header when present.
- * Does NOT fail the request if the slug is unknown — branding/migration
- * can lag behind; authenticated routes still work in single-tenant mode.
- * Strict lookup lives on GET /api/tenants/by-slug/:slug.
+ * Resolves tenant from:
+ * 1. X-Tenant-Slug header (preferred)
+ * 2. Origin / X-Forwarded-Host / Host subdomain
+ *
+ * Reserved subdomains (master, www, api, …) leave req without municipal tenant.
+ * Unknown slug: continue without tenant (public branding uses strict by-slug).
  */
 async function resolveTenant(req, res, next) {
   try {
+    let slug = null;
+
     const rawSlug = req.headers['x-tenant-slug'];
-    if (!rawSlug) {
-      return next();
+    if (rawSlug) {
+      slug = String(rawSlug).toLowerCase().trim();
     }
 
-    const slug = String(rawSlug).toLowerCase().trim();
     if (!slug) {
+      const baseDomain = process.env.BASE_DOMAIN || '';
+      const hostHeader =
+        req.headers['x-forwarded-host'] ||
+        req.headers.host ||
+        '';
+      const origin = req.headers.origin || '';
+      let hostname = hostHeader.split(',')[0].trim();
+      if (origin) {
+        try {
+          hostname = new URL(origin).hostname;
+        } catch {
+          // keep host header
+        }
+      }
+      slug = extractSubdomain(hostname, baseDomain);
+    }
+
+    if (!slug || isReservedSubdomain(slug)) {
       return next();
     }
 
@@ -27,7 +52,6 @@ async function resolveTenant(req, res, next) {
       req.tenant = tenant;
       req.tenantId = String(tenant._id);
     }
-    // Unknown slug: continue without tenant context (legacy / pre-migration)
 
     return next();
   } catch (err) {
@@ -36,7 +60,7 @@ async function resolveTenant(req, res, next) {
 }
 
 /**
- * Optional helper: merge tenantId into a Mongo query filter.
+ * Merge tenantId into a Mongo query filter (fail-open only when no tenant).
  */
 function withTenantFilter(req, filter = {}) {
   const tenantId = req.tenantId || req.user?.tenantId;

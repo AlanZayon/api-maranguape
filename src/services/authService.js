@@ -21,10 +21,26 @@ class AuthService {
     return parseExpiresToMs(getJwtExpiresIn());
   }
 
-  static async login(id, password, tokenLogin) {
-    const user = await AuthRepository.findUserById(id);
+  static async login(id, password, tokenLogin, tenantId = null) {
+    const user = await AuthRepository.findUserForLogin(id, tenantId);
 
     if (!user) {
+      throw new AppError('Credenciais incorretas', 401, 'INVALID_CREDENTIALS');
+    }
+
+    if (user.role !== 'superadmin' && !user.tenantId) {
+      throw new AppError(
+        'Usuário sem tenant associado',
+        403,
+        'TENANT_REQUIRED'
+      );
+    }
+
+    if (
+      tenantId &&
+      user.role !== 'superadmin' &&
+      String(user.tenantId) !== String(tenantId)
+    ) {
       throw new AppError('Credenciais incorretas', 401, 'INVALID_CREDENTIALS');
     }
 

@@ -4,16 +4,34 @@ const { randomUUID } = require('crypto');
 const AppError = require('../utils/AppError');
 const AuditService = require('./auditService');
 
+const TENANT_ASSIGNABLE_ROLES = ['admin', 'user'];
+
 class UserService {
   static buildScopeFilter(requester) {
     if (requester.role === 'superadmin') {
       return {};
     }
-    // Legacy single-tenant admins may not have tenantId until migrate runs
     if (!requester.tenantId) {
-      return {};
+      throw new AppError(
+        'Usuário sem tenant associado',
+        403,
+        'TENANT_REQUIRED'
+      );
     }
     return { tenantId: requester.tenantId };
+  }
+
+  static assertAssignableRole(requester, role) {
+    if (requester.role === 'superadmin') {
+      return;
+    }
+    if (!TENANT_ASSIGNABLE_ROLES.includes(role)) {
+      throw new AppError(
+        'Papel inválido. Use admin ou user',
+        400,
+        'VALIDATION_ERROR'
+      );
+    }
   }
 
   static async list(requester) {
@@ -42,13 +60,15 @@ class UserService {
       );
     }
 
+    this.assertAssignableRole(requester, role);
+
     let resolvedTenantId = tenantId || requester.tenantId || null;
 
     if (requester.role !== 'superadmin') {
       resolvedTenantId = requester.tenantId;
-      if (role === 'superadmin') {
+      if (role === 'superadmin' || role === 'owner') {
         throw new AppError(
-          'Apenas superadmin pode criar superadmin',
+          'Não é permitido atribuir este papel',
           403,
           'FORBIDDEN'
         );
@@ -100,12 +120,31 @@ class UserService {
       throw new AppError('Usuário não encontrado', 404, 'NOT_FOUND');
     }
 
-    if (requester.role !== 'superadmin' && data.role === 'superadmin') {
-      throw new AppError(
-        'Apenas superadmin pode promover a superadmin',
-        403,
-        'FORBIDDEN'
-      );
+    if (data.role !== undefined) {
+      this.assertAssignableRole(requester, data.role);
+
+      if (requester.role !== 'superadmin' && data.role === 'superadmin') {
+        throw new AppError(
+          'Apenas superadmin pode promover a superadmin',
+          403,
+          'FORBIDDEN'
+        );
+      }
+
+      if (user.role === 'owner' && data.role !== 'owner') {
+        const ownersLeft = await User.countDocuments({
+          tenantId: user.tenantId,
+          role: 'owner',
+          _id: { $ne: user._id },
+        });
+        if (ownersLeft === 0) {
+          throw new AppError(
+            'Não é possível remover o único dono do tenant',
+            400,
+            'VALIDATION_ERROR'
+          );
+        }
+      }
     }
 
     if (data.username) user.username = data.username;
@@ -140,6 +179,14 @@ class UserService {
     if (String(user._id) === String(requester.id)) {
       throw new AppError(
         'Não é possível excluir o próprio usuário',
+        400,
+        'VALIDATION_ERROR'
+      );
+    }
+
+    if (user.role === 'owner') {
+      throw new AppError(
+        'Não é possível excluir o dono do tenant',
         400,
         'VALIDATION_ERROR'
       );

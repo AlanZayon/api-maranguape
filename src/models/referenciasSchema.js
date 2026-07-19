@@ -29,7 +29,6 @@ const referenceSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Funcionario',
     sparse: true,
-    unique: true,
   },
   tenantId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -48,6 +47,12 @@ const referenceSchema = new mongoose.Schema({
     default: null,
   },
 });
+
+referenceSchema.index({ tenantId: 1, name: 1 }, { unique: true });
+referenceSchema.index(
+  { tenantId: 1, funcionarioId: 1 },
+  { unique: true, sparse: true }
+);
 
 const Referencia = db.model('Reference', referenceSchema);
 

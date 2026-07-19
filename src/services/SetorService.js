@@ -18,7 +18,7 @@ class SetorService {
           'VALIDATION_ERROR'
         );
       }
-      const parentNode = await SetorRepository.findById(parent);
+      const parentNode = await SetorRepository.findById(parent, tenantId);
       if (!parentNode) {
         throw new AppError('Nó pai não encontrado', 404, 'NOT_FOUND');
       }
@@ -74,10 +74,18 @@ class SetorService {
     );
   }
 
-  static async renameSetor(id, nome, userId = null) {
+  static async renameSetor(id, nome, userId = null, tenantId = null) {
     const normalizedName = normalizarTexto(nome);
     const extra = userId ? { updatedBy: userId } : {};
-    const setor = await SetorRepository.updateNome(id, normalizedName, extra);
+    const setor = await SetorRepository.updateNome(
+      id,
+      normalizedName,
+      extra,
+      tenantId
+    );
+    if (!setor) {
+      throw new AppError('Setor não encontrado', 404, 'NOT_FOUND');
+    }
 
     if (setor?.parent) {
       await CacheService.clearCacheForSetor(setor.parent);
@@ -90,7 +98,8 @@ class SetorService {
    * Move / reparent a node. parent = null promotes to root (Setor only).
    */
   static async moveSetor(id, parent, auditContext = {}) {
-    const setor = await SetorRepository.findById(id);
+    const tenantId = auditContext.tenantId || null;
+    const setor = await SetorRepository.findById(id, tenantId);
     if (!setor) {
       throw new AppError('Setor não encontrado', 404, 'NOT_FOUND');
     }
@@ -122,12 +131,12 @@ class SetorService {
         );
       }
     } else {
-      const parentNode = await SetorRepository.findById(nextParent);
+      const parentNode = await SetorRepository.findById(nextParent, tenantId);
       if (!parentNode) {
         throw new AppError('Nó pai não encontrado', 404, 'NOT_FOUND');
       }
 
-      const descendantIds = await SetorRepository.getDescendantIds(id);
+      const descendantIds = await SetorRepository.getDescendantIds(id, tenantId);
       const descendantSet = new Set(descendantIds.map((d) => String(d)));
       if (descendantSet.has(nextParent)) {
         throw new AppError(
@@ -144,7 +153,8 @@ class SetorService {
     const updated = await SetorRepository.updateParent(
       id,
       nextParent,
-      extra
+      extra,
+      tenantId
     );
 
     if (previousParent) {
@@ -172,12 +182,13 @@ class SetorService {
   }
 
   static async deleteSetor(id, auditContext = {}) {
-    const setor = await SetorRepository.findById(id);
+    const tenantId = auditContext.tenantId || null;
+    const setor = await SetorRepository.findById(id, tenantId);
     if (!setor) {
       throw new AppError('Setor não encontrado', 404, 'NOT_FOUND');
     }
 
-    const descendantIds = await SetorRepository.getDescendantIds(id);
+    const descendantIds = await SetorRepository.getDescendantIds(id, tenantId);
     if (!descendantIds.length) {
       throw new AppError('Setor não encontrado', 404, 'NOT_FOUND');
     }
@@ -195,7 +206,7 @@ class SetorService {
       );
     }
 
-    await SetorRepository.deleteWithChildren(id);
+    await SetorRepository.deleteWithChildren(id, tenantId);
     await CacheService.clearCacheForSetor(id);
 
     AuditService.logAction({

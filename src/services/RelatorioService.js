@@ -132,7 +132,7 @@ class RelatorioService {
    * Monta o payload JSON do relatório (fonte da verdade para a página de preview).
    * Exige `ids` não vazio para evitar varrer a base inteira sem escopo.
    */
-  async obterDadosRelatorio(ids, tipoRelatorio) {
+  async obterDadosRelatorio(ids, tipoRelatorio, tenantId = null) {
     if (!TIPOS_VALIDOS.includes(tipoRelatorio)) {
       const err = new Error(
         `Tipo de relatório inválido. Opções: ${TIPOS_VALIDOS.join(', ')}`
@@ -149,7 +149,7 @@ class RelatorioService {
       throw err;
     }
 
-    const raw = await FuncionarioRepository.findByIds(ids);
+    const raw = await FuncionarioRepository.findByIds(ids, tenantId);
     const funcionarios = raw
       .map((f) => this.mapFuncionario(f))
       .sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));

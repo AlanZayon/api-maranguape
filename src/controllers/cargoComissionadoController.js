@@ -11,7 +11,9 @@ function resolveUserId(req) {
 class CargoComissionadoController {
   static async listar(req, res, next) {
     try {
-      const cargos = await CargoComissionadoService.listarCargos();
+      const cargos = await CargoComissionadoService.listarCargos(
+        resolveTenantId(req)
+      );
       res.status(200).json(cargos);
     } catch (err) {
       next(err);
@@ -48,7 +50,9 @@ class CargoComissionadoController {
 
   static async remover(req, res, next) {
     try {
-      const result = await CargoComissionadoService.remover(req.params.id);
+      const result = await CargoComissionadoService.remover(req.params.id, {
+        tenantId: resolveTenantId(req),
+      });
       res.status(200).json(result);
     } catch (err) {
       next(err);

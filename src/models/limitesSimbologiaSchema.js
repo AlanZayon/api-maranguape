@@ -29,4 +29,6 @@ const limitesSimbologiaSchema = new mongoose.Schema({
   },
 });
 
+limitesSimbologiaSchema.index({ tenantId: 1, simbologia: 1 }, { unique: true });
+
 module.exports = db.model('Simbologia', limitesSimbologiaSchema);

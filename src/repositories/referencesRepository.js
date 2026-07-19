@@ -1,13 +1,21 @@
 const Reference = require('../models/referenciasSchema');
 const redis = require('../config/redisClient');
+const { tenantFilter, cacheKey } = require('../utils/tenantHelpers');
 
 class ReferencesRepository {
-  static async findReferenceByName(name) {
-    return await Reference.findOne({ name });
+  static cacheKeyFor(tenantId) {
+    return cacheKey(tenantId, 'referencias-dados');
   }
 
-  static async findReferenceByFuncionarioId(funcionarioId) {
-    return await Reference.findOne({ funcionarioId });
+  static async findReferenceByName(name, tenantId = null) {
+    return await Reference.findOne({ name, ...tenantFilter(tenantId) });
+  }
+
+  static async findReferenceByFuncionarioId(funcionarioId, tenantId = null) {
+    return await Reference.findOne({
+      funcionarioId,
+      ...tenantFilter(tenantId),
+    });
   }
 
   static async createReference(referenceData) {
@@ -15,12 +23,15 @@ class ReferencesRepository {
     return await newReference.save();
   }
 
-  static async getAllReferences() {
-    return await Reference.find().sort({ name: 1 });
+  static async getAllReferences(tenantId = null) {
+    return await Reference.find(tenantFilter(tenantId)).sort({ name: 1 });
   }
 
-  static async deleteReferenceById(id) {
-    return await Reference.findByIdAndDelete(id);
+  static async deleteReferenceById(id, tenantId = null) {
+    return await Reference.findOneAndDelete({
+      _id: id,
+      ...tenantFilter(tenantId),
+    });
   }
 
   static async getRedisCache(key) {

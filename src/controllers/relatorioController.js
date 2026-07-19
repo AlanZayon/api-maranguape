@@ -10,7 +10,11 @@ class RelatorioController {
       }
 
       const tipoRelatorio = tipo || 'geral';
-      const dados = await RelatorioService.obterDadosRelatorio(ids || [], tipoRelatorio);
+      const dados = await RelatorioService.obterDadosRelatorio(
+        ids || [],
+        tipoRelatorio,
+        req.user?.tenantId || req.tenantId || null
+      );
       return res.json(dados);
     } catch (err) {
       console.error('Erro ao obter dados do relatório:', err);

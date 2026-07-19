@@ -7,12 +7,18 @@ class FuncionarioRepository {
     return await Funcionario.findOne({ nome: name, ...this.tenantFilter(tenantId) });
   }
 
-  static findByIds(userIds) {
-    return Funcionario.find({ _id: { $in: userIds } }).lean();
+  static findByIds(userIds, tenantId = null) {
+    return Funcionario.find({
+      _id: { $in: userIds },
+      ...this.tenantFilter(tenantId),
+    }).lean();
   }
 
-  static findById(id) {
-    return Funcionario.findById(id).lean();
+  static findById(id, tenantId = null) {
+    return Funcionario.findOne({
+      _id: id,
+      ...this.tenantFilter(tenantId),
+    }).lean();
   }
 
   static escapeRegex(str) {
@@ -218,45 +224,56 @@ class FuncionarioRepository {
     return new Funcionario(data).save();
   }
 
-  static async update(id, data) {
-    return Funcionario.findByIdAndUpdate(id, data, { new: true });
+  static async update(id, data, tenantId = null) {
+    return Funcionario.findOneAndUpdate(
+      { _id: id, ...this.tenantFilter(tenantId) },
+      data,
+      { new: true }
+    );
   }
 
-  static deleteBatch(userIds) {
-    return Funcionario.deleteMany({ _id: { $in: userIds } });
+  static deleteBatch(userIds, tenantId = null) {
+    return Funcionario.deleteMany({
+      _id: { $in: userIds },
+      ...this.tenantFilter(tenantId),
+    });
   }
 
-  static async updateSetorId(userIds, newSetorId) {
+  static async updateSetorId(userIds, newSetorId, tenantId = null) {
     const ids = this.toObjectIds(userIds);
     const setorId = this.toObjectIds(newSetorId)[0];
 
     await Funcionario.updateMany(
-      { _id: { $in: ids } },
+      { _id: { $in: ids }, ...this.tenantFilter(tenantId) },
       { $set: { setorId } }
     );
   }
 
   /** @deprecated use updateSetorId */
-  static async updateCoordenadoria(userIds, newCoordId) {
-    return this.updateSetorId(userIds, newCoordId);
+  static async updateCoordenadoria(userIds, newCoordId, tenantId = null) {
+    return this.updateSetorId(userIds, newCoordId, tenantId);
   }
 
-  static async updateObservacoes(userId, observacoes) {
-    return Funcionario.findByIdAndUpdate(
-      userId,
+  static async updateObservacoes(userId, observacoes, tenantId = null) {
+    return Funcionario.findOneAndUpdate(
+      { _id: userId, ...this.tenantFilter(tenantId) },
       { observacoes },
       { new: true }
     );
   }
 
-  static contarTotal() {
-    return Funcionario.countDocuments();
+  static contarTotal(tenantId = null) {
+    return Funcionario.countDocuments(this.tenantFilter(tenantId));
   }
 
-  static agruparPorReferencia() {
-    return Funcionario.aggregate([
-      { $group: { _id: '$referencia', total: { $sum: 1 } } },
-    ]);
+  static agruparPorReferencia(tenantId = null) {
+    const match = this.tenantFilter(tenantId);
+    const pipeline = [];
+    if (Object.keys(match).length) {
+      pipeline.push({ $match: match });
+    }
+    pipeline.push({ $group: { _id: '$referencia', total: { $sum: 1 } } });
+    return Funcionario.aggregate(pipeline);
   }
 
   static async countFuncionariosInSetores(setorIds) {

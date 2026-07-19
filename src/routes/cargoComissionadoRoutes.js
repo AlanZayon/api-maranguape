@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const { authenticate, authorize } = require('../middlewares/auth');
+const { authenticate, authorize, TENANT_ELEVATED } = require('../middlewares/auth');
 const { validate } = require('../middlewares/validate');
 const { cargoComissionadoJoiSchema } = require('../validations/validateCargoComissionado');
 const CargoComissionadoController = require('../controllers/cargoComissionadoController');
@@ -28,12 +28,12 @@ router.use(authenticate);
 router.get('/', CargoComissionadoController.listar);
 router.get(
   '/template',
-  authorize('admin', 'superadmin'),
+  authorize(...TENANT_ELEVATED),
   CargoComissionadoController.template
 );
 router.post(
   '/import',
-  authorize('admin', 'superadmin'),
+  authorize(...TENANT_ELEVATED),
   (req, res, next) => {
     upload.single('file')(req, res, (err) => {
       if (err) {
@@ -46,19 +46,19 @@ router.post(
 );
 router.post(
   '/',
-  authorize('admin', 'superadmin'),
+  authorize(...TENANT_ELEVATED),
   validate(cargoComissionadoJoiSchema),
   CargoComissionadoController.criar
 );
 router.put(
   '/:id',
-  authorize('admin', 'superadmin'),
+  authorize(...TENANT_ELEVATED),
   validate(cargoComissionadoJoiSchema),
   CargoComissionadoController.atualizar
 );
 router.delete(
   '/:id',
-  authorize('admin', 'superadmin'),
+  authorize(...TENANT_ELEVATED),
   CargoComissionadoController.remover
 );
 

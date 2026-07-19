@@ -41,6 +41,8 @@ const CargoSchema = new mongoose.Schema({
   },
 });
 
+CargoSchema.index({ tenantId: 1, cargo: 1 }, { unique: true });
+
 const CargoComissionado = db.model('Cargocomissionado', CargoSchema);
 
 module.exports = CargoComissionado;
