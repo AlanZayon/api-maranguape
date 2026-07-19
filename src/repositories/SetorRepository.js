@@ -27,6 +27,20 @@ class SetorRepository {
     return await Setor.find({ parent: null, ...this.tenantFilter(tenantId) });
   }
 
+  /**
+   * Direct children of a parent. Pass null/undefined for roots.
+   */
+  static async findChildren(parentId = null, tenantId = null) {
+    const parent =
+      parentId === undefined || parentId === null || parentId === ''
+        ? null
+        : parentId;
+    return await Setor.find({
+      parent,
+      ...this.tenantFilter(tenantId),
+    });
+  }
+
   static async findSetorData(setorId, tenantId = null) {
     return await Setor.find({ parent: setorId, ...this.tenantFilter(tenantId) });
   }

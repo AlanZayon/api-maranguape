@@ -3,15 +3,11 @@ const CargoComissionadoRepository = require('../repositories/cargoComissionadoRe
 const CacheService = require('../services/CacheService');
 const AppError = require('../utils/AppError');
 const { normalizarTexto } = require('../validations/validateCargoComissionado');
-const redisClient = require('../config/redisClient');
 const { cacheKey } = require('../utils/tenantHelpers');
 
 class CargoComissionadoService {
   static async invalidateCache(tenantId = null) {
-    await redisClient.del(cacheKey(tenantId, 'todos:cargosComissionados'));
-    if (tenantId) {
-      await redisClient.del('todos:cargosComissionados');
-    }
+    await CacheService.bumpVersion(tenantId);
   }
 
   static async listarCargos(tenantId = null) {

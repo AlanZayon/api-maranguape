@@ -10,6 +10,31 @@ const normalizeObservacoes = require('../utils/normalizeObservacoes');
 const AppError = require('../utils/AppError');
 
 const BATCH_SIZE = 100;
+const MAX_BATCH_CONCURRENCY = 2;
+const MAX_LIST_LIMIT = 200;
+const DEFAULT_LIST_LIMIT = 50;
+
+/**
+ * Run async work over items with a fixed concurrency limit.
+ */
+async function runWithConcurrency(items, concurrency, workerFn) {
+  if (!items.length) return [];
+
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await workerFn(items[index], index);
+    }
+  }
+
+  const poolSize = Math.min(concurrency, items.length);
+  await Promise.all(Array.from({ length: poolSize }, () => worker()));
+  return results;
+}
 
 /** Resolve lotação id from body (setorId canônico ou alias coordenadoria). */
 function resolveSetorId(body = {}) {
@@ -30,38 +55,64 @@ function escapeCsv(value) {
   return str;
 }
 
+function clampLimit(limit, fallback = DEFAULT_LIST_LIMIT) {
+  const n = parseInt(limit, 10);
+  if (Number.isNaN(n) || n < 1) return fallback;
+  return Math.min(n, MAX_LIST_LIMIT);
+}
+
+function clampPage(page) {
+  const n = parseInt(page, 10);
+  if (Number.isNaN(n) || n < 1) return 1;
+  return n;
+}
+
+function extractListFilters(source = {}) {
+  return {
+    q: source.q || '',
+    natureza: source.natureza || '',
+    secretaria: source.secretaria || '',
+    funcao: source.funcao || '',
+    bairro: source.bairro || '',
+    referencia: source.referencia || '',
+  };
+}
+
+function hasActiveFilters(filters = {}) {
+  return Object.values(filters).some((v) => v != null && String(v).trim() !== '');
+}
+
+function tenantCachePrefix(tenantId) {
+  return tenantId ? `tenant:${tenantId}:` : '';
+}
+
 class FuncionarioService {
-  static async buscarFuncionarios(page = 1, limit = 100, tenantId = null) {
-    const cacheKey = tenantId
-      ? `tenant:${tenantId}:todos:funcionarios:page${page}`
-      : `todos:funcionarios:page${page}`;
+  static async buscarFuncionarios(page = 1, limit = DEFAULT_LIST_LIMIT, tenantId = null, filters = {}) {
+    const pageNum = clampPage(page);
+    const limitNum = clampLimit(limit);
+    const skip = (pageNum - 1) * limitNum;
+    const listFilters = extractListFilters(filters);
+    const filterKey = hasActiveFilters(listFilters)
+      ? `:f:${JSON.stringify(listFilters)}`
+      : '';
+    const cacheKey = `${tenantCachePrefix(tenantId)}todos:funcionarios:page${pageNum}:l${limitNum}${filterKey}`;
 
     return await CacheService.getOrSetCache(cacheKey, async () => {
-      const skip = (page - 1) * limit;
-
-      const total = await FuncionarioRepository.countDocuments(tenantId);
-
-      const funcionarios = await FuncionarioRepository.findAll(tenantId)
-        .skip(skip)
-        .limit(limit);
-
-      const funcionariosComUrls = await Promise.all(
-        funcionarios.map(async (funcionario) => ({
-          ...funcionario,
-          fotoUrl: funcionario.foto
-            ? await awsUtils.gerarUrlPreAssinada(funcionario.foto)
-            : null,
-          arquivoUrl: funcionario.arquivo
-            ? await awsUtils.gerarUrlPreAssinada(funcionario.arquivo)
-            : null,
-        }))
-      );
+      const [total, funcionarios] = await Promise.all([
+        FuncionarioRepository.countWithFilters(listFilters, tenantId),
+        FuncionarioRepository.findWithFilters(
+          listFilters,
+          skip,
+          limitNum,
+          tenantId
+        ),
+      ]);
 
       return {
-        funcionarios: funcionariosComUrls,
+        funcionarios,
         total,
-        page,
-        pages: Math.ceil(total / limit),
+        page: pageNum,
+        pages: Math.max(1, Math.ceil(total / limitNum)),
       };
     });
   }
@@ -109,83 +160,141 @@ class FuncionarioService {
     return result;
   }
 
-  static async buscarFuncionariosPorCoordenadoria(idCoordenadoria, tenantId = null) {
-    return this.buscarFuncionariosPorLotacao(idCoordenadoria, tenantId);
+  static async getFiltrosDisponiveis(tenantId = null) {
+    const cacheKey = `${tenantCachePrefix(tenantId)}funcionarios:filtros`;
+    return CacheService.getOrSetCache(cacheKey, async () => {
+      return FuncionarioRepository.distinctFiltrosSelecao(tenantId);
+    });
   }
 
-  static async buscarFuncionariosPorLotacao(setorId, tenantId = null) {
-    return await CacheService.getOrSetCache(
-      `setor:${setorId}:funcionarios`,
-      async () => {
-        const objectId = mongoose.Types.ObjectId.isValid(setorId)
-          ? new mongoose.Types.ObjectId(setorId)
-          : setorId;
+  /** Presigned media URLs for a single employee (detail/modal). */
+  static async getMidiaUrls(id, tenantId = null) {
+    const funcionario = await FuncionarioRepository.findById(id, tenantId);
+    if (!funcionario) {
+      throw new AppError('Funcionário não encontrado', 404, 'NOT_FOUND');
+    }
+    return {
+      fotoUrl: funcionario.foto
+        ? await awsUtils.gerarUrlPreAssinada(funcionario.foto)
+        : null,
+      arquivoUrl: funcionario.arquivo
+        ? await awsUtils.gerarUrlPreAssinada(funcionario.arquivo)
+        : null,
+    };
+  }
 
-        const funcionarios = await FuncionarioRepository.findBySetorId(
-          [objectId],
-          tenantId
-        );
-
-        return await Promise.all(
-          funcionarios.map(async (funcionario) => ({
-            ...funcionario,
-            fotoUrl: funcionario.foto
-              ? await awsUtils.gerarUrlPreAssinada(funcionario.foto)
-              : null,
-            arquivoUrl: funcionario.arquivo
-              ? await awsUtils.gerarUrlPreAssinada(funcionario.arquivo)
-              : null,
-          }))
-        );
-      }
+  /** IDs only for select-all-filtered. */
+  static async buscarIds(
+    { filters = {}, setorIds = null, subtreeRoot = null, max = 10000 } = {},
+    tenantId = null
+  ) {
+    const ids = await FuncionarioRepository.findIdsOnly(
+      extractListFilters(filters),
+      tenantId,
+      { setorIds, subtreeRoot, max }
     );
+    return { ids, total: ids.length };
+  }
+
+  static async buscarFuncionariosPorCoordenadoria(
+    idCoordenadoria,
+    page = 1,
+    limit = DEFAULT_LIST_LIMIT,
+    tenantId = null,
+    filters = {}
+  ) {
+    return this.buscarFuncionariosPorLotacao(
+      idCoordenadoria,
+      page,
+      limit,
+      tenantId,
+      filters
+    );
+  }
+
+  static async buscarFuncionariosPorLotacao(
+    setorId,
+    page = 1,
+    limit = DEFAULT_LIST_LIMIT,
+    tenantId = null,
+    filters = {}
+  ) {
+    const pageNum = clampPage(page);
+    const limitNum = clampLimit(limit);
+    const listFilters = extractListFilters(filters);
+    const filterKey = hasActiveFilters(listFilters)
+      ? `:f:${JSON.stringify(listFilters)}`
+      : '';
+    const cacheKey = `${tenantCachePrefix(tenantId)}setor:${setorId}:funcionarios:page:${pageNum}:l${limitNum}${filterKey}`;
+
+    return await CacheService.getOrSetCache(cacheKey, async () => {
+      const objectId = mongoose.Types.ObjectId.isValid(setorId)
+        ? new mongoose.Types.ObjectId(setorId)
+        : setorId;
+      const skip = (pageNum - 1) * limitNum;
+
+      const [total, funcionarios] = await Promise.all([
+        FuncionarioRepository.countBySetoresExact(
+          [objectId],
+          tenantId,
+          listFilters
+        ),
+        FuncionarioRepository.findBySetoresFiltered(
+          [objectId],
+          skip,
+          limitNum,
+          tenantId,
+          listFilters
+        ),
+      ]);
+
+      return {
+        funcionarios,
+        total,
+        page: pageNum,
+        pages: Math.max(1, Math.ceil(total / limitNum)),
+      };
+    });
   }
 
   static async buscarFuncionariosPorSetor(
     idSetor,
     page = 1,
-    limit = 100,
-    tenantId = null
+    limit = DEFAULT_LIST_LIMIT,
+    tenantId = null,
+    filters = {}
   ) {
+    const pageNum = clampPage(page);
+    const limitNum = clampLimit(limit);
+    const listFilters = extractListFilters(filters);
+    const filterKey = hasActiveFilters(listFilters)
+      ? `:f:${JSON.stringify(listFilters)}`
+      : '';
     const objectId = mongoose.Types.ObjectId.isValid(idSetor)
       ? new mongoose.Types.ObjectId(idSetor)
       : idSetor;
 
     return await CacheService.getOrSetCache(
-      `setor:${idSetor}:funcionarios:page:${page}`,
+      `${tenantCachePrefix(tenantId)}setor:${idSetor}:subtree:page:${pageNum}:l${limitNum}${filterKey}`,
       async () => {
-        const skip = (page - 1) * limit;
+        const skip = (pageNum - 1) * limitNum;
 
-        const total = await FuncionarioRepository.countBySetor(
-          objectId,
-          tenantId
-        );
-
-        const funcionarios =
-          await FuncionarioRepository.buscarFuncionariosPorSetor(
+        const [total, funcionarios] = await Promise.all([
+          FuncionarioRepository.countBySetor(objectId, tenantId, listFilters),
+          FuncionarioRepository.buscarFuncionariosPorSetor(
             objectId,
             skip,
-            limit,
-            tenantId
-          );
-
-        const funcionariosComUrls = await Promise.all(
-          funcionarios.map(async (funcionario) => ({
-            ...funcionario,
-            fotoUrl: funcionario.foto
-              ? await awsUtils.gerarUrlPreAssinada(funcionario.foto)
-              : null,
-            arquivoUrl: funcionario.arquivo
-              ? await awsUtils.gerarUrlPreAssinada(funcionario.arquivo)
-              : null,
-          }))
-        );
+            limitNum,
+            tenantId,
+            listFilters
+          ),
+        ]);
 
         return {
-          funcionarios: funcionariosComUrls,
+          funcionarios,
           total,
-          page,
-          pages: Math.ceil(total / limit),
+          page: pageNum,
+          pages: Math.max(1, Math.ceil(total / limitNum)),
         };
       }
     );
@@ -194,50 +303,59 @@ class FuncionarioService {
   static async buscarFuncionariosPorDivisoes(
     idsDivisoes,
     page = 1,
-    limit = 100,
-    tenantId = null
+    limit = DEFAULT_LIST_LIMIT,
+    tenantId = null,
+    filters = {}
   ) {
-    return this.buscarFuncionariosPorSetores(idsDivisoes, page, limit, tenantId);
+    return this.buscarFuncionariosPorSetores(
+      idsDivisoes,
+      page,
+      limit,
+      tenantId,
+      filters
+    );
   }
 
   static async buscarFuncionariosPorSetores(
     idsSetores,
     page = 1,
-    limit = 100,
-    tenantId = null
+    limit = DEFAULT_LIST_LIMIT,
+    tenantId = null,
+    filters = {}
   ) {
-    return CacheService.getOrSetCache(
-      `setores:${idsSetores.join('-')}:page${page}`,
-      async () => {
-        const skip = (page - 1) * limit;
+    const pageNum = clampPage(page);
+    const limitNum = clampLimit(limit);
+    const listFilters = extractListFilters(filters);
+    const filterKey = hasActiveFilters(listFilters)
+      ? `:f:${JSON.stringify(listFilters)}`
+      : '';
 
+    return CacheService.getOrSetCache(
+      `${tenantCachePrefix(tenantId)}setores:${idsSetores.join('-')}:page${pageNum}:l${limitNum}${filterKey}`,
+      async () => {
+        const skip = (pageNum - 1) * limitNum;
+
+        // Exact match on provided IDs (not hierarchy) — same semantic for count and find
         const [total, funcionarios] = await Promise.all([
-          FuncionarioRepository.countBySetor(idsSetores, tenantId),
-          FuncionarioRepository.findBySetores(
+          FuncionarioRepository.countBySetoresExact(
+            idsSetores,
+            tenantId,
+            listFilters
+          ),
+          FuncionarioRepository.findBySetoresFiltered(
             idsSetores,
             skip,
-            limit,
-            tenantId
+            limitNum,
+            tenantId,
+            listFilters
           ),
         ]);
 
-        const funcionariosComUrls = await Promise.all(
-          funcionarios.map(async (f) => ({
-            ...f,
-            fotoUrl: f.foto
-              ? await awsUtils.gerarUrlPreAssinada(f.foto)
-              : null,
-            arquivoUrl: f.arquivo
-              ? await awsUtils.gerarUrlPreAssinada(f.arquivo)
-              : null,
-          }))
-        );
-
         return {
-          funcionarios: funcionariosComUrls,
+          funcionarios,
           total,
-          page,
-          pages: Math.ceil(total / limit),
+          page: pageNum,
+          pages: Math.max(1, Math.ceil(total / limitNum)),
         };
       }
     );
@@ -338,6 +456,7 @@ class FuncionarioService {
     );
 
     await CacheService.clearCacheForFuncionarios(
+      tenantId,
       funcionarioCriado.setorId,
       setor[0]?.parent
     );
@@ -408,6 +527,7 @@ class FuncionarioService {
   );
 
   await CacheService.clearCacheForFuncionarios(
+    tenantId,
     funcionarioAtualizado.setorId,
     setor[0]?.parent
   );
@@ -430,37 +550,33 @@ class FuncionarioService {
   static async deleteUsers(userIds, tenantId = null) {
     try {
       const setoresAfetados = new Set();
-      const batchPromises = [];
       const cargosComissionados = new Map();
 
+      const batches = [];
       for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
-        const batch = userIds.slice(i, i + BATCH_SIZE);
-
-        batchPromises.push(
-          (async () => {
-            const funcionarios = await FuncionarioRepository.findByIds(
-              batch,
-              tenantId
-            );
-
-            funcionarios.forEach((func) => {
-              const lotacao = lotacaoIdOf(func);
-              if (lotacao) {
-                setoresAfetados.add(lotacao);
-              }
-
-              if (func.natureza === 'COMISSIONADO' && func.funcao) {
-                const atual = cargosComissionados.get(func.funcao) || 0;
-                cargosComissionados.set(func.funcao, atual + 1);
-              }
-            });
-
-            return FuncionarioRepository.deleteBatch(batch, tenantId);
-          })()
-        );
+        batches.push(userIds.slice(i, i + BATCH_SIZE));
       }
 
-      await Promise.all(batchPromises);
+      await runWithConcurrency(batches, MAX_BATCH_CONCURRENCY, async (batch) => {
+        const funcionarios = await FuncionarioRepository.findByIds(
+          batch,
+          tenantId
+        );
+
+        funcionarios.forEach((func) => {
+          const lotacao = lotacaoIdOf(func);
+          if (lotacao) {
+            setoresAfetados.add(lotacao);
+          }
+
+          if (func.natureza === 'COMISSIONADO' && func.funcao) {
+            const atual = cargosComissionados.get(func.funcao) || 0;
+            cargosComissionados.set(func.funcao, atual + 1);
+          }
+        });
+
+        return FuncionarioRepository.deleteBatch(batch, tenantId);
+      });
 
       for (const [nomeFuncao, qtd] of cargosComissionados) {
         const cargo = await CargoComissionado.buscarPorNome(nomeFuncao, tenantId);
@@ -491,7 +607,10 @@ class FuncionarioService {
         }
       });
 
-      await CacheService.clearCacheForFuncionarios(setoresParaLimparCache);
+      await CacheService.clearCacheForFuncionarios(
+        tenantId,
+        ...setoresParaLimparCache
+      );
     } catch (error) {
       console.error('Erro ao deletar usuários:', error);
       throw error;
@@ -529,6 +648,7 @@ class FuncionarioService {
 
     try {
       await CacheService.clearCacheForCoordChange(
+        tenantId,
         oldSetorIds,
         newSetorId,
         parentIds
@@ -564,6 +684,7 @@ class FuncionarioService {
     );
 
     await CacheService.clearCacheForFuncionarios(
+      tenantId,
       lotacao,
       setor[0]?.parent
     );

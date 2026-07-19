@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const AppError = require('../utils/AppError');
-const Tenant = require('../models/tenantSchema');
+const { findTenantBySlug } = require('./tenant');
 
 /** Tenant elevated: dashboard, cargos, referências, deletes, branding */
 const TENANT_ELEVATED = ['owner', 'admin', 'superadmin'];
@@ -57,10 +57,7 @@ async function authenticate(req, res, next) {
         null;
       if (actAs) {
         const slug = String(actAs).toLowerCase().trim();
-        const tenant = await Tenant.findOne({
-          slug,
-          status: 'active',
-        }).lean();
+        const tenant = await findTenantBySlug(slug);
         if (!tenant) {
           return next(
             new AppError(

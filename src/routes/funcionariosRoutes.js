@@ -17,6 +17,10 @@ router.use(authenticate);
 
 router.get('/buscarFuncionarios', FuncionarioController.buscarFuncionarios);
 router.get('/para-selecao', FuncionarioController.buscarParaSelecao);
+router.get('/filtros-disponiveis', FuncionarioController.getFiltrosDisponiveis);
+router.get('/jobs/:jobId', FuncionarioController.getJob);
+router.get('/:id/midia', FuncionarioController.getMidia);
+router.post('/ids', authorize(...TENANT_STAFF), FuncionarioController.buscarIds);
 router.get(
   '/buscarFuncionariosPorCoordenadoria/:coordId',
   FuncionarioController.buscarFuncionariosPorCoordenadoria

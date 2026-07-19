@@ -48,11 +48,11 @@ class SearchService {
     let setoresInfo = [];
 
     for (const setor of setoresEncontrados) {
-      const allChildIds = await SearchRepository.findChildIds(
+      // findChildIds returns root + descendants (single $graphLookup)
+      const idsToMatch = await SearchRepository.findChildIds(
         setor._id,
         tenantId
       );
-      const idsToMatch = [setor._id, ...allChildIds];
       const funcs = await SearchRepository.findFuncionariosBySetorId(
         { $in: idsToMatch },
         tenantId

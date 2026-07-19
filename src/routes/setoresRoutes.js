@@ -20,7 +20,9 @@ router.post(
 );
 router.get('/setoresOrganizados', SetorController.getSetoresOrganizados);
 router.get('/setoresMain', SetorController.getMainSetores);
+router.get('/roots', SetorController.getRoots);
 router.get('/dados/:setorId', SetorController.getSetorData);
+router.get('/:id/children', SetorController.getChildren);
 router.put('/rename/:id', authorize(...TENANT_STAFF), SetorController.renameSetor);
 router.put('/:id/parent', authorize(...TENANT_STAFF), SetorController.moveSetor);
 router.delete('/del/:id', authorize(...TENANT_ELEVATED), SetorController.deleteSetor);

@@ -74,6 +74,9 @@ const funcionarioSchema = new mongoose.Schema({
 });
 
 funcionarioSchema.index({ tenantId: 1, nome: 1 }, { unique: true });
+funcionarioSchema.index({ tenantId: 1, setorId: 1 });
+funcionarioSchema.index({ tenantId: 1, fimContrato: 1 });
+funcionarioSchema.index({ tenantId: 1, natureza: 1 });
 
 const Funcionario = db.model('Funcionario', funcionarioSchema);
 

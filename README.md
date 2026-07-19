@@ -238,6 +238,9 @@ npm install
 npm run dev
 # or production
 npm run prod
+
+# Sync MongoDB indexes (also runs on boot)
+node src/scripts/syncIndexes.js
 ```
 - API: http://localhost:3000
 

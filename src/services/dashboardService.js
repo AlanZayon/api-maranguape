@@ -1,9 +1,8 @@
 const FuncionarioRepository = require('../repositories/FuncionariosRepository');
-const SetorRepository = require('../repositories/SetorRepository');
 const Simbologia = require('../models/limitesSimbologiaSchema');
 const Funcionario = require('../models/funcionariosSchema');
 const mongoose = require('mongoose');
-const organizarSetores = require('../utils/organizarSetores');
+const SetorService = require('./SetorService');
 
 class DashboardService {
   static tenantFilter(tenantId) {
@@ -85,12 +84,7 @@ class DashboardService {
   }
 
   static async getEstruturaSnapshot(tenantId = null) {
-    const [setores, countsPorSetor] = await Promise.all([
-      SetorRepository.getAllSetores(tenantId),
-      FuncionarioRepository.countFuncionariosPorSetor(tenantId),
-    ]);
-
-    const tree = organizarSetores(setores, countsPorSetor);
+    const tree = await SetorService.getSetoresOrganizados(tenantId);
     const ranked = this.flattenEstruturaRanking(tree);
 
     const totalSetores = ranked.length;

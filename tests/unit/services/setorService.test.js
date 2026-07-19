@@ -32,7 +32,7 @@ describe('SetorService', () => {
       tipo: 'Setor',
       parent: null,
     });
-    expect(CacheService.clearCacheForSetor).toHaveBeenCalledWith('1');
+    expect(CacheService.clearCacheForSetor).toHaveBeenCalledWith('1', null);
     expect(setor).toEqual(setorMock);
   });
 
@@ -50,8 +50,8 @@ describe('SetorService', () => {
 
     await SetorService.createSetor(data);
 
-    expect(CacheService.clearCacheForSetor).toHaveBeenCalledWith('parent1');
-    expect(CacheService.clearCacheForSetor).toHaveBeenCalledWith('2');
+    expect(CacheService.clearCacheForSetor).toHaveBeenCalledWith('parent1', null);
+    expect(CacheService.clearCacheForSetor).toHaveBeenCalledWith('2', null);
   });
 
   test('deve obter os setores principais', async () => {
@@ -95,16 +95,18 @@ describe('SetorService', () => {
     expect(SetorRepository.updateNome).toHaveBeenCalledWith(
       id,
       'NOVO NOME',
-      {}
+      {},
+      null
     );
-    expect(CacheService.clearCacheForSetor).toHaveBeenCalledWith(parentId);
-    expect(CacheService.clearCacheForSetor).toHaveBeenCalledWith(id);
+    expect(CacheService.clearCacheForSetor).toHaveBeenCalledWith(parentId, null);
+    expect(CacheService.clearCacheForSetor).toHaveBeenCalledWith(id, null);
     expect(setor).toEqual(setorMock);
   });
 
   test('deve deletar o setor corretamente quando sem funcionários', async () => {
     const id = '123';
 
+    SetorRepository.findById.mockResolvedValue({ _id: id, nome: 'S' });
     SetorRepository.getDescendantIds.mockResolvedValue([id]);
     FuncionarioRepository.countFuncionariosInSetores.mockResolvedValue(0);
     SetorRepository.deleteWithChildren.mockResolvedValue(true);
@@ -112,13 +114,14 @@ describe('SetorService', () => {
 
     await SetorService.deleteSetor(id);
 
-    expect(SetorRepository.deleteWithChildren).toHaveBeenCalledWith(id);
-    expect(CacheService.clearCacheForSetor).toHaveBeenCalledWith(id);
+    expect(SetorRepository.deleteWithChildren).toHaveBeenCalledWith(id, null);
+    expect(CacheService.clearCacheForSetor).toHaveBeenCalledWith(id, null);
   });
 
   test('deve bloquear exclusão quando há funcionários', async () => {
     const id = '123';
 
+    SetorRepository.findById.mockResolvedValue({ _id: id, nome: 'S' });
     SetorRepository.getDescendantIds.mockResolvedValue([id]);
     FuncionarioRepository.countFuncionariosInSetores.mockResolvedValue(2);
 
@@ -148,12 +151,17 @@ describe('SetorService', () => {
       tenantId: 't1',
     });
 
-    expect(SetorRepository.updateParent).toHaveBeenCalledWith(id, newParent, {
-      updatedBy: 'u1',
-    });
-    expect(CacheService.clearCacheForSetor).toHaveBeenCalledWith(oldParent);
-    expect(CacheService.clearCacheForSetor).toHaveBeenCalledWith(newParent);
-    expect(CacheService.clearCacheForSetor).toHaveBeenCalledWith(id);
+    expect(SetorRepository.updateParent).toHaveBeenCalledWith(
+      id,
+      newParent,
+      {
+        updatedBy: 'u1',
+      },
+      't1'
+    );
+    expect(CacheService.clearCacheForSetor).toHaveBeenCalledWith(oldParent, 't1');
+    expect(CacheService.clearCacheForSetor).toHaveBeenCalledWith(newParent, 't1');
+    expect(CacheService.clearCacheForSetor).toHaveBeenCalledWith(id, 't1');
     expect(result).toEqual(updated);
   });
 
@@ -183,7 +191,7 @@ describe('SetorService', () => {
 
     const result = await SetorService.moveSetor(id, null);
 
-    expect(SetorRepository.updateParent).toHaveBeenCalledWith(id, null, {});
+    expect(SetorRepository.updateParent).toHaveBeenCalledWith(id, null, {}, null);
     expect(result.parent).toBeNull();
   });
 

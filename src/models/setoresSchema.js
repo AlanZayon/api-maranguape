@@ -10,7 +10,12 @@ const setorSchema = new mongoose.Schema({
     enum: ['Setor', 'Subsetor'],
     required: true,
   },
-  parent: { type: mongoose.Schema.Types.ObjectId, ref: 'Setor', default: null },
+  parent: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Setor',
+    default: null,
+    index: true,
+  },
   tenantId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Tenant',
@@ -29,6 +34,8 @@ const setorSchema = new mongoose.Schema({
   },
   createdAt: { type: Date, default: Date.now },
 });
+
+setorSchema.index({ tenantId: 1, parent: 1 });
 
 const Setor = db.model('Setor', setorSchema);
 

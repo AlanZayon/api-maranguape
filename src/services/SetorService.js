@@ -35,9 +35,9 @@ class SetorService {
     const setor = await SetorRepository.create(payload);
 
     if (parent) {
-      await CacheService.clearCacheForSetor(parent);
+      await CacheService.clearCacheForSetor(parent, tenantId);
     }
-    await CacheService.clearCacheForSetor(setor._id);
+    await CacheService.clearCacheForSetor(setor._id, tenantId);
 
     return setor;
   }
@@ -65,13 +65,46 @@ class SetorService {
   }
 
   static async getSetorData(setorId, tenantId = null) {
-    return await CacheService.getOrSetCache(
-      `setor:${setorId}:dados`,
-      async () => {
-        const subsetores = await SetorRepository.findSetorData(setorId, tenantId);
-        return { subsetores };
-      }
-    );
+    const cacheKey = tenantId
+      ? `tenant:${tenantId}:setor:${setorId}:dados`
+      : `setor:${setorId}:dados`;
+
+    return await CacheService.getOrSetCache(cacheKey, async () => {
+      const subsetores = await SetorRepository.findSetorData(setorId, tenantId);
+      return { subsetores };
+    });
+  }
+
+  /**
+   * Direct children of a parent (or roots if parentId is null/undefined),
+   * with direct + subtree employee counts.
+   */
+  static async getChildren(parentId = null, tenantId = null) {
+    const children = await SetorRepository.findChildren(parentId, tenantId);
+    if (!children.length) return [];
+
+    const [funcionariosPorSetor, ...descendantIdLists] = await Promise.all([
+      FuncionarioRepository.countFuncionariosPorSetor(tenantId),
+      ...children.map((c) =>
+        SetorRepository.getDescendantIds(c._id, tenantId)
+      ),
+    ]);
+
+    return children.map((child, i) => {
+      const obj = child.toObject ? child.toObject() : { ...child };
+      const ids = descendantIdLists[i] || [child._id];
+      const subtree = ids.reduce(
+        (sum, id) => sum + (funcionariosPorSetor[String(id)] || 0),
+        0
+      );
+      const direct = funcionariosPorSetor[String(child._id)] || 0;
+      return {
+        ...obj,
+        quantidadeFuncionarios: direct,
+        quantidadeFuncionariosSubtree: subtree,
+        temFilhos: ids.length > 1,
+      };
+    });
   }
 
   static async renameSetor(id, nome, userId = null, tenantId = null) {
@@ -88,9 +121,9 @@ class SetorService {
     }
 
     if (setor?.parent) {
-      await CacheService.clearCacheForSetor(setor.parent);
+      await CacheService.clearCacheForSetor(setor.parent, tenantId);
     }
-    await CacheService.clearCacheForSetor(id);
+    await CacheService.clearCacheForSetor(id, tenantId);
     return setor;
   }
 
@@ -158,12 +191,12 @@ class SetorService {
     );
 
     if (previousParent) {
-      await CacheService.clearCacheForSetor(previousParent);
+      await CacheService.clearCacheForSetor(previousParent, tenantId);
     }
     if (nextParent) {
-      await CacheService.clearCacheForSetor(nextParent);
+      await CacheService.clearCacheForSetor(nextParent, tenantId);
     }
-    await CacheService.clearCacheForSetor(id);
+    await CacheService.clearCacheForSetor(id, tenantId);
 
     AuditService.logAction({
       tenantId: auditContext.tenantId,
@@ -207,7 +240,7 @@ class SetorService {
     }
 
     await SetorRepository.deleteWithChildren(id, tenantId);
-    await CacheService.clearCacheForSetor(id);
+    await CacheService.clearCacheForSetor(id, tenantId);
 
     AuditService.logAction({
       tenantId: auditContext.tenantId,

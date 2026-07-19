@@ -1,22 +1,92 @@
 const FuncionarioService = require('../services/funcionariosService');
 const CargoComissionadoService = require('../services/cargoComissionadoService');
+const {
+  BULK_SYNC_THRESHOLD,
+  enqueueDeleteUsers,
+  enqueueExportCsv,
+  getJobStatus,
+} = require('../queues/bulkQueue');
 
 function resolveTenantId(req) {
   return req.user?.tenantId || req.tenantId || null;
 }
 
+function listFiltersFromQuery(query = {}) {
+  return {
+    q: query.q || '',
+    natureza: query.natureza || '',
+    secretaria: query.secretaria || '',
+    funcao: query.funcao || '',
+    bairro: query.bairro || '',
+    referencia: query.referencia || '',
+  };
+}
+
+function listFiltersFromBody(body = {}) {
+  return {
+    q: body.q || '',
+    natureza: body.natureza || '',
+    secretaria: body.secretaria || '',
+    funcao: body.funcao || '',
+    bairro: body.bairro || '',
+    referencia: body.referencia || '',
+  };
+}
+
 class FuncionarioController {
   static async buscarFuncionarios(req, res, next) {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 100;
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 50;
 
     try {
       const funcionarios = await FuncionarioService.buscarFuncionarios(
         page,
         limit,
-        resolveTenantId(req)
+        resolveTenantId(req),
+        listFiltersFromQuery(req.query)
       );
       res.json(funcionarios);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getFiltrosDisponiveis(req, res, next) {
+    try {
+      const filtros = await FuncionarioService.getFiltrosDisponiveis(
+        resolveTenantId(req)
+      );
+      res.json(filtros);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getMidia(req, res, next) {
+    try {
+      const midia = await FuncionarioService.getMidiaUrls(
+        req.params.id,
+        resolveTenantId(req)
+      );
+      res.json(midia);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async buscarIds(req, res, next) {
+    try {
+      const body = req.body || {};
+      const result = await FuncionarioService.buscarIds(
+        {
+          filters: listFiltersFromBody(body),
+          setorIds: Array.isArray(body.ids) ? body.ids : body.setorIds || null,
+          subtreeRoot: body.subtreeRoot || null,
+          max: body.max || 10000,
+        },
+        resolveTenantId(req)
+      );
+      res.json(result);
     } catch (err) {
       next(err);
     }
@@ -50,11 +120,16 @@ class FuncionarioController {
 
   static async buscarFuncionariosPorCoordenadoria(req, res, next) {
     const { coordId } = req.params;
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 50;
     try {
       const funcionarios =
         await FuncionarioService.buscarFuncionariosPorCoordenadoria(
           coordId,
-          resolveTenantId(req)
+          page,
+          limit,
+          resolveTenantId(req),
+          listFiltersFromQuery(req.query)
         );
       res.json(funcionarios);
     } catch (err) {
@@ -66,12 +141,13 @@ class FuncionarioController {
     try {
       const { idSetor } = req.params;
       const page = parseInt(req.query.page, 10) || 1;
-      const limit = parseInt(req.query.limit, 10) || 1000;
+      const limit = parseInt(req.query.limit, 10) || 50;
       const funcionarios = await FuncionarioService.buscarFuncionariosPorSetor(
         idSetor,
         page,
-        Math.min(limit, 5000),
-        resolveTenantId(req)
+        limit,
+        resolveTenantId(req),
+        listFiltersFromQuery(req.query)
       );
       return res.status(200).json(funcionarios);
     } catch (err) {
@@ -88,15 +164,16 @@ class FuncionarioController {
         ? ids.split(',').filter((id) => id.length > 0)
         : [];
 
-    const pageNumber = parseInt(page) || 1;
-    const limitNumber = parseInt(limit) || 100;
+    const pageNumber = parseInt(page, 10) || 1;
+    const limitNumber = parseInt(limit, 10) || 50;
     try {
       const funcionarios =
         await FuncionarioService.buscarFuncionariosPorDivisoes(
           idsArray,
           pageNumber,
           limitNumber,
-          resolveTenantId(req)
+          resolveTenantId(req),
+          listFiltersFromBody(req.body)
         );
       res.json(funcionarios);
     } catch (err) {
@@ -143,11 +220,30 @@ class FuncionarioController {
         return res.status(400).json({ error: 'Lista de usuários inválida.' });
       }
 
-      const result = await FuncionarioService.deleteUsers(
-        userIds,
-        resolveTenantId(req)
-      );
-      res.status(200).json(result);
+      const tenantId = resolveTenantId(req);
+
+      if (userIds.length > BULK_SYNC_THRESHOLD) {
+        const job = await enqueueDeleteUsers({ userIds, tenantId });
+        return res.status(202).json({
+          jobId: String(job.id),
+          status: 'queued',
+        });
+      }
+
+      const result = await FuncionarioService.deleteUsers(userIds, tenantId);
+      res.status(200).json(result ?? { success: true, deleted: userIds.length });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getJob(req, res, next) {
+    try {
+      const status = await getJobStatus(req.params.jobId);
+      if (!status) {
+        return res.status(404).json({ error: 'Job não encontrado.' });
+      }
+      return res.status(200).json(status);
     } catch (err) {
       next(err);
     }
@@ -230,10 +326,17 @@ class FuncionarioController {
   static async exportCsv(req, res, next) {
     try {
       const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
-      const csv = await FuncionarioService.exportCsv(
-        resolveTenantId(req),
-        ids
-      );
+      const tenantId = resolveTenantId(req);
+
+      if (ids.length > BULK_SYNC_THRESHOLD) {
+        const job = await enqueueExportCsv({ ids, tenantId });
+        return res.status(202).json({
+          jobId: String(job.id),
+          status: 'queued',
+        });
+      }
+
+      const csv = await FuncionarioService.exportCsv(tenantId, ids);
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader(
         'Content-Disposition',

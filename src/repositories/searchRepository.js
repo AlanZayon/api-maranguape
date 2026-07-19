@@ -1,6 +1,7 @@
 // Data-access layer for search queries against MongoDB models.
 const Funcionario = require('../models/funcionariosSchema');
 const Setor = require('../models/setoresSchema');
+const SetorRepository = require('./SetorRepository');
 const { tenantFilter } = require('../utils/tenantHelpers');
 
 class SearchRepository {
@@ -26,19 +27,11 @@ class SearchRepository {
     return { $match: filter };
   }
 
+  /**
+   * Root id + all descendants via a single $graphLookup (SetorRepository).
+   */
   static async findChildIds(parentId, tenantId = null) {
-    const children = await Setor.find({
-      parent: parentId,
-      ...tenantFilter(tenantId),
-    });
-    let ids = [parentId];
-
-    for (const child of children) {
-      const childIds = await this.findChildIds(child._id, tenantId);
-      ids = [...ids, ...childIds];
-    }
-
-    return ids;
+    return SetorRepository.getDescendantIds(parentId, tenantId);
   }
 
   static async autocompleteFuncionarios(termo, tenantId = null) {

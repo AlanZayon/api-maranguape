@@ -51,6 +51,31 @@ class SetorController {
     }
   }
 
+  static async getRoots(req, res, next) {
+    try {
+      const children = await SetorService.getChildren(
+        null,
+        resolveTenantId(req)
+      );
+      res.json({ children });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getChildren(req, res, next) {
+    try {
+      const { id } = req.params;
+      const children = await SetorService.getChildren(
+        id,
+        resolveTenantId(req)
+      );
+      res.json({ children });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async renameSetor(req, res, next) {
     try {
       const { id } = req.params;

@@ -6,6 +6,12 @@ const httpMocks = require('node-mocks-http');
 
 jest.mock('../../../src/services/funcionariosService.js');
 jest.mock('../../../src/utils/Logger.js');
+jest.mock('../../../src/queues/bulkQueue', () => ({
+  BULK_SYNC_THRESHOLD: 200,
+  enqueueDeleteUsers: jest.fn(),
+  enqueueExportCsv: jest.fn(),
+  getJobStatus: jest.fn(),
+}));
 
 describe('FuncionarioController', () => {
   let req, res, next;
@@ -105,7 +111,7 @@ describe('FuncionarioController', () => {
     req.body = { usuariosIds: [1], coordenadoriaId: 2 };
     FuncionarioService.updateLotacao.mockResolvedValue({ sucesso: true });
     await FuncionarioController.updateCoordenadoria(req, res, next);
-    expect(FuncionarioService.updateLotacao).toHaveBeenCalledWith([1], 2);
+    expect(FuncionarioService.updateLotacao).toHaveBeenCalledWith([1], 2, null);
     expect(res.statusCode).toBe(200);
   });
 

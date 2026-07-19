@@ -67,8 +67,12 @@ describe('FuncionarioService', () => {
     expect(FuncionarioRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({ nome: 'Novo Funcionario', setorId: 'ABC' })
     );
-    expect(SetorRepository.findSetorByCoordenadoria).toHaveBeenCalledWith(['ABC']);
-    expect(CacheService.clearCacheForFuncionarios).toHaveBeenCalledWith('ABC', 'SETOR_PARENT');
+    expect(SetorRepository.findSetorByCoordenadoria).toHaveBeenCalledWith(['ABC'], null);
+    expect(CacheService.clearCacheForFuncionarios).toHaveBeenCalledWith(
+      null,
+      'ABC',
+      'SETOR_PARENT'
+    );
   });
 
   test('Deve retornar erro ao tentar atualizar funcionário inexistente', async () => {

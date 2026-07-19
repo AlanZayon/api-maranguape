@@ -26,12 +26,12 @@ class FuncionarioRepository {
   }
 
   /**
-   * Filtro para seleção de funcionários (picker de referências, etc.).
-   * @param {{ q?: string, natureza?: string, secretaria?: string, funcao?: string }} filters
+   * Shared list/selection filter match.
+   * @param {{ q?: string, natureza?: string, secretaria?: string, funcao?: string, bairro?: string, referencia?: string }} filters
    */
-  static buildSelecaoMatch(filters = {}, tenantId = null) {
+  static buildListMatch(filters = {}, tenantId = null) {
     const match = { ...this.tenantFilter(tenantId) };
-    const { q, natureza, secretaria, funcao } = filters;
+    const { q, natureza, secretaria, funcao, bairro, referencia } = filters;
 
     if (q && String(q).trim()) {
       const regex = new RegExp(this.escapeRegex(String(q).trim()), 'i');
@@ -69,7 +69,26 @@ class FuncionarioRepository {
       );
     }
 
+    if (bairro && String(bairro).trim()) {
+      match.bairro = new RegExp(
+        `^${this.escapeRegex(String(bairro).trim())}$`,
+        'i'
+      );
+    }
+
+    if (referencia && String(referencia).trim()) {
+      match.referencia = new RegExp(
+        `^${this.escapeRegex(String(referencia).trim())}$`,
+        'i'
+      );
+    }
+
     return match;
+  }
+
+  /** @deprecated use buildListMatch */
+  static buildSelecaoMatch(filters = {}, tenantId = null) {
+    return this.buildListMatch(filters, tenantId);
   }
 
   static async countParaSelecao(filters = {}, tenantId = null) {
@@ -87,11 +106,14 @@ class FuncionarioRepository {
 
   static async distinctFiltrosSelecao(tenantId = null) {
     const filter = this.tenantFilter(tenantId);
-    const [naturezas, secretarias, funcoes] = await Promise.all([
-      Funcionario.distinct('natureza', filter),
-      Funcionario.distinct('secretaria', filter),
-      Funcionario.distinct('funcao', filter),
-    ]);
+    const [naturezas, secretarias, funcoes, bairros, referencias] =
+      await Promise.all([
+        Funcionario.distinct('natureza', filter),
+        Funcionario.distinct('secretaria', filter),
+        Funcionario.distinct('funcao', filter),
+        Funcionario.distinct('bairro', filter),
+        Funcionario.distinct('referencia', filter),
+      ]);
 
     const cleanSort = (arr) =>
       arr
@@ -103,7 +125,64 @@ class FuncionarioRepository {
       naturezas: cleanSort(naturezas),
       secretarias: cleanSort(secretarias),
       funcoes: cleanSort(funcoes),
+      bairros: cleanSort(bairros),
+      referencias: cleanSort(referencias),
     };
+  }
+
+  static async countWithFilters(filters = {}, tenantId = null) {
+    return Funcionario.countDocuments(this.buildListMatch(filters, tenantId));
+  }
+
+  static findWithFilters(filters = {}, skip = 0, limit = 50, tenantId = null) {
+    return Funcionario.find(this.buildListMatch(filters, tenantId))
+      .sort({ nome: 1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+  }
+
+  static findBySetoresFiltered(
+    idsSetores,
+    skip,
+    limit,
+    tenantId = null,
+    filters = {}
+  ) {
+    const objectIdArray = this.toObjectIds(idsSetores);
+    const match = {
+      ...this.buildListMatch(filters, tenantId),
+      setorId: { $in: objectIdArray },
+    };
+    return Funcionario.find(match)
+      .sort({ nome: 1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+  }
+
+  static async countBySetoresExact(idsSetores, tenantId = null, filters = {}) {
+    const objectIdArray = this.toObjectIds(idsSetores);
+    if (!objectIdArray.length) return 0;
+    const match = {
+      ...this.buildListMatch(filters, tenantId),
+      setorId: { $in: objectIdArray },
+    };
+    return Funcionario.countDocuments(match);
+  }
+
+  /** Returns only _id for select-all-filtered without loading full docs. */
+  static async findIdsOnly(filters = {}, tenantId = null, { setorIds = null, subtreeRoot = null, max = 10000 } = {}) {
+    let match = this.buildListMatch(filters, tenantId);
+    if (subtreeRoot) {
+      const ids = await this.getDescendantSetorIds(subtreeRoot, tenantId);
+      if (!ids.length) return [];
+      match = { ...match, setorId: { $in: ids } };
+    } else if (setorIds && setorIds.length) {
+      match = { ...match, setorId: { $in: this.toObjectIds(setorIds) } };
+    }
+    const docs = await Funcionario.find(match).select('_id').limit(max).lean();
+    return docs.map((d) => d._id);
   }
 
   /** Funcionários lotados exatamente nestes nós (Setor/Subsetor). */
@@ -146,11 +225,16 @@ class FuncionarioRepository {
     return Funcionario.find(this.tenantFilter(tenantId)).lean();
   }
 
-  static async countBySetor(idsSetores, tenantId = null) {
+  /**
+   * Collects unique setor IDs for the given roots including all descendants.
+   * Uses $graphLookup only for IDs — never materializes employee documents.
+   */
+  static async getDescendantSetorIds(idsSetores, tenantId = null) {
     const idsArray = this.toObjectIds(idsSetores);
-    const match = { _id: { $in: idsArray }, ...this.tenantFilter(tenantId) };
+    if (!idsArray.length) return [];
 
-    const result = await Setores.aggregate([
+    const match = { _id: { $in: idsArray }, ...this.tenantFilter(tenantId) };
+    const rows = await Setores.aggregate([
       { $match: match },
       {
         $graphLookup: {
@@ -162,62 +246,53 @@ class FuncionarioRepository {
         },
       },
       {
-        $addFields: {
+        $project: {
           allIds: { $concatArrays: [['$_id'], '$hierarquia._id'] },
         },
       },
-      {
-        $lookup: {
-          from: 'funcionarios',
-          localField: 'allIds',
-          foreignField: 'setorId',
-          as: 'funcionarios',
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          count: { $sum: { $size: '$funcionarios' } },
-        },
-      },
+      { $unwind: '$allIds' },
+      { $group: { _id: null, ids: { $addToSet: '$allIds' } } },
     ]);
 
-    return result[0]?.count || 0;
+    return rows[0]?.ids || [];
   }
 
-  static async buscarFuncionariosPorSetor(idSetor, skip = 0, limit = 100, tenantId = null) {
-    const [objectId] = this.toObjectIds(idSetor);
-    const match = { _id: objectId, ...this.tenantFilter(tenantId) };
+  /** Count employees under setor roots including descendants (no double-count). */
+  static async countBySetor(idsSetores, tenantId = null, filters = {}) {
+    const setorIds = await this.getDescendantSetorIds(idsSetores, tenantId);
+    if (!setorIds.length) return 0;
 
-    return await Setores.aggregate([
-      { $match: match },
-      {
-        $graphLookup: {
-          from: 'setors',
-          startWith: '$_id',
-          connectFromField: '_id',
-          connectToField: 'parent',
-          as: 'hierarquia',
-        },
-      },
-      {
-        $addFields: {
-          allIds: { $concatArrays: [['$_id'], '$hierarquia._id'] },
-        },
-      },
-      {
-        $lookup: {
-          from: 'funcionarios',
-          localField: 'allIds',
-          foreignField: 'setorId',
-          as: 'funcionarios',
-        },
-      },
-      { $unwind: '$funcionarios' },
-      { $replaceRoot: { newRoot: '$funcionarios' } },
-      { $skip: skip },
-      { $limit: limit },
-    ]);
+    const match = {
+      ...this.buildListMatch(filters, tenantId),
+      setorId: { $in: setorIds },
+    };
+    return Funcionario.countDocuments(match);
+  }
+
+  /**
+   * Paginated employees under a setor subtree.
+   * Collects descendant IDs first, then find + skip/limit (no full $lookup).
+   */
+  static async buscarFuncionariosPorSetor(
+    idSetor,
+    skip = 0,
+    limit = 50,
+    tenantId = null,
+    filters = {}
+  ) {
+    const setorIds = await this.getDescendantSetorIds(idSetor, tenantId);
+    if (!setorIds.length) return [];
+
+    const match = {
+      ...this.buildListMatch(filters, tenantId),
+      setorId: { $in: setorIds },
+    };
+
+    return Funcionario.find(match)
+      .sort({ nome: 1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
   }
 
   static create(data) {
@@ -391,30 +466,60 @@ class FuncionarioRepository {
     const d90 = new Date(now);
     d90.setDate(d90.getDate() + 90);
 
-    const [in30, in31to60, in61to90, expired, indeterminado] = await Promise.all([
-      Funcionario.countDocuments({
-        ...this.tenantFilter(tenantId),
-        fimContrato: { $type: 'date', $gte: now, $lte: d30 },
-      }),
-      Funcionario.countDocuments({
-        ...this.tenantFilter(tenantId),
-        fimContrato: { $type: 'date', $gt: d30, $lte: d60 },
-      }),
-      Funcionario.countDocuments({
-        ...this.tenantFilter(tenantId),
-        fimContrato: { $type: 'date', $gt: d60, $lte: d90 },
-      }),
-      Funcionario.countDocuments({
-        ...this.tenantFilter(tenantId),
-        fimContrato: { $type: 'date', $lt: now },
-      }),
-      Funcionario.countDocuments({
-        ...this.tenantFilter(tenantId),
-        fimContrato: 'indeterminado',
-      }),
+    const filter = this.tenantFilter(tenantId);
+    const [row] = await Funcionario.aggregate([
+      { $match: filter },
+      {
+        $facet: {
+          in30: [
+            {
+              $match: {
+                fimContrato: { $type: 'date', $gte: now, $lte: d30 },
+              },
+            },
+            { $count: 'n' },
+          ],
+          in31to60: [
+            {
+              $match: {
+                fimContrato: { $type: 'date', $gt: d30, $lte: d60 },
+              },
+            },
+            { $count: 'n' },
+          ],
+          in61to90: [
+            {
+              $match: {
+                fimContrato: { $type: 'date', $gt: d60, $lte: d90 },
+              },
+            },
+            { $count: 'n' },
+          ],
+          expired: [
+            {
+              $match: {
+                fimContrato: { $type: 'date', $lt: now },
+              },
+            },
+            { $count: 'n' },
+          ],
+          indeterminado: [
+            { $match: { fimContrato: 'indeterminado' } },
+            { $count: 'n' },
+          ],
+        },
+      },
     ]);
 
-    return { in30, in31to60, in61to90, expired, indeterminado };
+    const countOf = (bucket) => bucket?.[0]?.n || 0;
+
+    return {
+      in30: countOf(row?.in30),
+      in31to60: countOf(row?.in31to60),
+      in61to90: countOf(row?.in61to90),
+      expired: countOf(row?.expired),
+      indeterminado: countOf(row?.indeterminado),
+    };
   }
 
   static async findContratosAVencer(tenantId = null, { withinDays = 90, limit = 20 } = {}) {
