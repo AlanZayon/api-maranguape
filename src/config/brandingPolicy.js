@@ -49,6 +49,8 @@ const DEFAULT_ALLOWED_SELECTORS = [
   '.btn-brand',
   '.dashboard-page',
   '.dashboard-stat',
+  '.relatorio-preview',
+  '.relatorio-document',
 ];
 
 const DEFAULT_FONT_HOSTS = [

@@ -1,16 +1,33 @@
 const FuncionarioRepository = require('../repositories/FuncionariosRepository');
+const TenantService = require('./tenantService');
 
 const TIPOS_VALIDOS = ['geral', 'salarial', 'referencias', 'localidade'];
 
 class RelatorioService {
-  obterTituloRelatorio(tipo) {
+  obterTituloRelatorio(tipo, displayName = null) {
     const titulos = {
-      salarial: 'Relatório Salarial da Prefeitura',
-      referencias: 'Relatório de Indicações da Prefeitura',
+      salarial: 'Relatório Salarial',
+      referencias: 'Relatório de Indicações',
       localidade: 'Relatório de Localização de Servidores',
-      geral: 'Relatório Geral de Funcionários da Prefeitura',
+      geral: 'Relatório Geral de Funcionários',
     };
-    return titulos[tipo] || titulos.geral;
+    const base = titulos[tipo] || titulos.geral;
+    const orgao = typeof displayName === 'string' ? displayName.trim() : '';
+    return orgao ? `${base} — ${orgao}` : base;
+  }
+
+  async carregarBrandingTenant(tenantId) {
+    if (!tenantId) return null;
+    try {
+      const payload = await TenantService.getById(tenantId);
+      return {
+        ...(payload.branding || {}),
+        displayName:
+          payload.branding?.displayName || payload.name || null,
+      };
+    } catch {
+      return null;
+    }
   }
 
   validateFuncionarioData(funcionario) {
@@ -168,15 +185,20 @@ class RelatorioService {
 
     const resumo = this.calcularResumo(funcionarios);
     const agrupamentos = this.buildAgrupamentos(tipoRelatorio, funcionarios);
+    const branding = await this.carregarBrandingTenant(tenantId);
 
     return {
       tipo: tipoRelatorio,
-      titulo: this.obterTituloRelatorio(tipoRelatorio),
+      titulo: this.obterTituloRelatorio(
+        tipoRelatorio,
+        branding?.displayName || null
+      ),
       geradoEm: new Date().toISOString(),
       funcionarios,
       resumo,
       agrupamentos,
       avisos,
+      branding,
     };
   }
 }
