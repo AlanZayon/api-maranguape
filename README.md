@@ -10,7 +10,7 @@ Web interface demo: https://interface-sistema-maranguape.vercel.app/
 flowchart LR
     User["👤 User"]
     Frontend["🌐 Web Interface (Vercel)"]
-    API["⚙️ API Node.js (Express)"]
+    API["API NestJS TypeScript"]
     MongoFunc["🗄️ MongoDB "]
     Redis["⚡ Redis (Cache)"]
     S3["☁️ AWS S3 (Uploads)"]
@@ -298,7 +298,7 @@ curl -X POST http://localhost:3000/api/funcionarios/relatorio-funcionarios/gerar
 ## For Developers
 
 ### Technologies
-- Node.js, Express
+- Node.js, NestJS, TypeScript
 - MongoDB/Mongoose (separate connections for employees and users)
 - Redis (ioredis)
 - JWT for authentication
@@ -328,58 +328,32 @@ curl -X POST http://localhost:3000/api/funcionarios/relatorio-funcionarios/gerar
 ### Project Structure
 ```
 src/
-├── app.js                 # Express configuration and middlewares
-├── server.js              # HTTP server bootstrap
-├── config/
-│   ├── aws.js             # S3 client
-│   ├── multerConfig.js    # In-memory upload
-│   ├── redisClient.js     # Redis client
-│   └── Mongoose/
-│       ├── funcionariosConnection.js
-│       └── usuariosConnection.js
-├── controllers/
-│   ├── authController.js
-│   ├── funcionariosController.js
-│   ├── referencesController.js
-│   ├── relatorioController.js
-│   └── SetorController.js
-├── models/
-│   ├── funcionariosSchema.js
-│   ├── setoresSchema.js
-│   ├── usuariosSchema.js
-│   ├── referenciasSchema.js
-│   ├── limitesSimbologiaSchema.js
-│   └── CargoComissionadoSchema.js
-├── repositories/
-│   ├── authRepository.js
-│   ├── FuncionariosRepository.js
-│   ├── SetorRepository.js
-│   ├── cargoComissionadoRepository.js
-│   ├── referencesRepository.js
-│   └── searchRepository.js
-├── routes/
-│   ├── authRoutes.js
-│   ├── funcionariosRoutes.js
-│   ├── referencesRoutes.js
-│   ├── searchRoutes.js
-│   └── setoresRoutes.js
-├── services/
-│   ├── authService.js
-│   ├── CacheService.js
-│   ├── cargoComissionadoService.js
-│   ├── funcionariosService.js
-│   ├── referencesService.js
-│   ├── RelatorioService.js
-│   └── SetorService.js
-├── utils/
-│   ├── awsUtils.js
-│   ├── LimiteService.js
-│   ├── Logger.js
-│   └── organizarSetores.js
-└── validations/
-    ├── validateFuncionario.js
-    ├── validates.js
-    └── validatesSetor.js
+├── main.ts                 # Nest bootstrap (HTTP)
+├── worker.ts               # BullMQ standalone worker entry
+├── app.module.ts
+├── config/                 # Env validation, CORS, branding policy
+├── common/                 # Guards, filters, middleware, utils
+├── database/               # Mongoose root + index sync
+├── infrastructure/         # Redis, cache, S3, BullMQ
+├── modules/
+│   ├── auth/
+│   ├── tenants/
+│   ├── setores/
+│   ├── funcionarios/
+│   ├── cargos-comissionados/
+│   ├── search/
+│   ├── referencias/
+│   ├── dashboard/
+│   ├── audit/
+│   └── health/
+└── scripts/                # CLI migrations / seed (Nest context)
+```
+
+### Run locally
+```bash
+npm install
+npm run build
+npm run dev
 ```
 
 ### Main Routes (Summary)
@@ -468,7 +442,7 @@ npm test
 
 ## My Responsibilities in This Project
 
-- Complete backend architecture (Node.js + Express)
+- Complete backend architecture (Node.js + NestJS + TypeScript)
 - Integration with MongoDB and Redis
 - Implementation of secure authentication via httpOnly cookies
 - Upload system with AWS S3 and pre-signed links
