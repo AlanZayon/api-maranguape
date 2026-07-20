@@ -40,6 +40,9 @@ jobs:
       - name: Instalar dependências
         run: npm install
 
+      - name: Build NestJS
+        run: npm run build
+
       - name: Install mongosh
         run: |
           sudo apt-get install gnupg
@@ -65,6 +68,8 @@ jobs:
           echo "JWT_SECRET=ci-test-secret-not-for-production" >> $GITHUB_ENV
           echo "JWT_EXPIRES_IN=1h" >> $GITHUB_ENV
           echo "S3_BUCKET_NAME=system-maranguape" >> $GITHUB_ENV
+          echo "NEST_MIGRATED=all" >> $GITHUB_ENV
+          echo "BULK_WORKER_EMBEDDED=false" >> $GITHUB_ENV
 
       - name: Rodar linting
         run: npm run lint

@@ -1,111 +1,62 @@
-/* eslint-disable no-undef */
-const { describe, test, expect, beforeEach } = require('@jest/globals');
-
-jest.mock('../../../src/config/redisClient', () => ({
-  get: jest.fn(),
-  setex: jest.fn(),
-  del: jest.fn(),
-  exists: jest.fn(),
-  incr: jest.fn(),
-  scan: jest.fn(),
-  keys: jest.fn(),
-  pipeline: jest.fn(() => ({
-    del: jest.fn().mockReturnThis(),
-    exec: jest.fn().mockResolvedValue([]),
-  })),
-}));
-
-const redisClient = require('../../../src/config/redisClient');
-const CacheService = require('../../../src/services/CacheService');
+/**
+ * Smoke tests for Nest CacheService (ported from legacy CacheService tests).
+ */
+const { CacheService } = require('../../../src/infrastructure/cache/cache.service');
 
 describe('CacheService', () => {
+  const store = new Map();
+  const redis = {
+    get: jest.fn(async (k) => store.get(k) || null),
+    setex: jest.fn(async (k, _ttl, v) => {
+      store.set(k, v);
+      return 'OK';
+    }),
+    incr: jest.fn(async (k) => {
+      const n = Number(store.get(k) || 0) + 1;
+      store.set(k, String(n));
+      return n;
+    }),
+    del: jest.fn(async (...keys) => {
+      let n = 0;
+      for (const k of keys) {
+        if (store.delete(k)) n += 1;
+      }
+      return n;
+    }),
+  };
+
+  /** @type {CacheService} */
+  let cache;
+
   beforeEach(() => {
+    store.clear();
     jest.clearAllMocks();
-    redisClient.get.mockResolvedValue(null);
-    redisClient.incr.mockResolvedValue(1);
-    redisClient.del.mockResolvedValue(1);
+    cache = new CacheService(redis);
   });
 
-  describe('getOrSetCache', () => {
-    test('returns cached JSON when present', async () => {
-      redisClient.get
-        .mockResolvedValueOnce('0') // version
-        .mockResolvedValueOnce(JSON.stringify({ a: 1 })); // data
-
-      const fetchFn = jest.fn();
-      const result = await CacheService.getOrSetCache('k', fetchFn);
-
-      expect(result).toEqual({ a: 1 });
-      expect(fetchFn).not.toHaveBeenCalled();
-      expect(redisClient.setex).not.toHaveBeenCalled();
-    });
-
-    test('caches empty array from fetchFunction under versioned key', async () => {
-      redisClient.get
-        .mockResolvedValueOnce('3') // version
-        .mockResolvedValueOnce(null); // miss
-      redisClient.setex.mockResolvedValue('OK');
-
-      const result = await CacheService.getOrSetCache('k', async () => []);
-
-      expect(result).toEqual([]);
-      expect(redisClient.setex).toHaveBeenCalledWith(
-        'v3:k',
-        3600,
-        JSON.stringify([])
-      );
-    });
-
-    test('versions tenant-prefixed keys', async () => {
-      redisClient.get
-        .mockResolvedValueOnce('2')
-        .mockResolvedValueOnce(null);
-      redisClient.setex.mockResolvedValue('OK');
-
-      const data = { subsetores: [] };
-      const result = await CacheService.getOrSetCache(
-        'tenant:abc:setoresOrganizados',
-        async () => data
-      );
-
-      expect(result).toEqual(data);
-      expect(redisClient.setex).toHaveBeenCalledWith(
-        'tenant:abc:v2:setoresOrganizados',
-        3600,
-        JSON.stringify(data)
-      );
-    });
-
-    test('does not cache null', async () => {
-      redisClient.get
-        .mockResolvedValueOnce('0')
-        .mockResolvedValueOnce(null);
-
-      const result = await CacheService.getOrSetCache('k', async () => null);
-
-      expect(result).toBeNull();
-      expect(redisClient.setex).not.toHaveBeenCalled();
-    });
+  test('tenantKey prefixes with tenant', () => {
+    expect(cache.tenantKey('abc', 'foo')).toBe('tenant:abc:foo');
+    expect(cache.tenantKey(null, 'foo')).toBe('foo');
   });
 
-  describe('clearCacheForSetor', () => {
-    test('deletes known keys and bumps tenant version (no SCAN)', async () => {
-      await CacheService.clearCacheForSetor('abc', 'tenant1');
+  test('getOrSetCache stores and returns fresh data', async () => {
+    const fetch = jest.fn(async () => ({ ok: true }));
+    const first = await cache.getOrSetCache('tenant:t1:list', fetch, 60);
+    expect(first).toEqual({ ok: true });
+    expect(fetch).toHaveBeenCalledTimes(1);
 
-      expect(redisClient.del).toHaveBeenCalledWith('setor:abc:dados');
-      expect(redisClient.del).toHaveBeenCalledWith('setores:null');
-      expect(redisClient.del).toHaveBeenCalledWith('setoresOrganizados');
-      expect(redisClient.incr).toHaveBeenCalledWith('tenant:tenant1:cache:v');
-      expect(redisClient.scan).not.toHaveBeenCalled();
-    });
+    const second = await cache.getOrSetCache('tenant:t1:list', fetch, 60);
+    expect(second).toEqual({ ok: true });
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  describe('clearCacheForFuncionarios', () => {
-    test('bumps version without scanning', async () => {
-      await CacheService.clearCacheForFuncionarios('t1', 'setor1');
-
-      expect(redisClient.incr).toHaveBeenCalledWith('tenant:t1:cache:v');
-      expect(redisClient.scan).not.toHaveBeenCalled();
-    });
+  test('bumpVersion invalidates logical keys', async () => {
+    const fetch = jest.fn(async () => ({ v: 1 }));
+    await cache.getOrSetCache('tenant:t1:list', fetch, 60);
+    await cache.bumpVersion('t1');
+    fetch.mockResolvedValueOnce({ v: 2 });
+    const next = await cache.getOrSetCache('tenant:t1:list', fetch, 60);
+    expect(next).toEqual({ v: 2 });
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 });

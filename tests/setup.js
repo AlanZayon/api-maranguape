@@ -1,20 +1,23 @@
-const connectToFuncionariosDB = require('../src/config/Mongoose/funcionariosConnection');
-const { MongoMemoryServer } = require('mongodb-memory-server');
-const redisClient = require('../src/config/redisClient');
-const { beforeAll, afterAll } = require('@jest/globals');
 require('dotenv').config();
+const { MongoMemoryServer } = require('mongodb-memory-server');
+const { beforeAll, afterAll } = require('@jest/globals');
 
-let mongoServerFunc;
+let mongoServer;
 
 beforeAll(async () => {
-  // Conectar ao MongoDB de Funcionários
-  mongoServerFunc = await MongoMemoryServer.create();
-  const mongoURIFunc = mongoServerFunc.getUri();
-  await connectToFuncionariosDB(
-    process.env.MONGO_CONNECTING_FUNCIONARIOS || mongoURIFunc
-  );
-});
+  mongoServer = await MongoMemoryServer.create();
+  process.env.MONGO_CONNECTING_FUNCIONARIOS = mongoServer.getUri();
+  process.env.MONGO_CONNECTING_USUARIOS = process.env.MONGO_CONNECTING_FUNCIONARIOS;
+  process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
+  process.env.JWT_EXPIRES_IN = '1h';
+  process.env.REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
+  process.env.NEST_HOST = 'true';
+  process.env.NEST_MIGRATED = 'all';
+  process.env.BULK_WORKER_EMBEDDED = 'false';
+}, 120000);
 
 afterAll(async () => {
-  await redisClient.quit();
+  if (mongoServer) {
+    await mongoServer.stop();
+  }
 });
