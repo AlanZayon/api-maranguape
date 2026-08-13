@@ -6,6 +6,7 @@ import { CacheService } from '../../../infrastructure/cache/cache.service';
 import { S3Service } from '../../../infrastructure/s3/s3.service';
 import { normalizarTexto } from '../../../common/utils/normalizar-texto';
 import { Setor, SetorDocument } from '../../setores/schemas/setor.schema';
+import { Reference } from '../../referencias/schemas/referencia.schema';
 import { FuncionariosRepository } from '../repositories/funcionarios.repository';
 import { CargoLookupRepository } from '../repositories/cargo-lookup.repository';
 import { LimiteService } from './limite.service';
@@ -99,7 +100,55 @@ export class FuncionariosService {
     private readonly cacheService: CacheService,
     private readonly s3Service: S3Service,
     @InjectModel(Setor.name) private readonly setorModel: Model<SetorDocument>,
+    @InjectModel(Reference.name)
+    private readonly referenceModel: Model<Reference>,
   ) {}
+
+  /**
+   * Mantém `referenciaId` (vínculo canônico) e `referencia` (nome espelhado,
+   * usado por filtros, busca, CSV e relatórios) coerentes entre si. Retorna
+   * apenas os campos que devem ser gravados — se o payload não menciona
+   * referência, nada é alterado.
+   */
+  private async resolveReferenciaVinculo(
+    dto: Pick<FuncionarioDto, 'referencia' | 'referenciaId'>,
+    tenantId: string | null,
+  ): Promise<Record<string, unknown>> {
+    const temId = dto.referenciaId !== undefined;
+    const temNome = dto.referencia !== undefined;
+    if (!temId && !temNome) return {};
+
+    const tenantScope = tenantId
+      ? {
+          tenantId: Types.ObjectId.isValid(tenantId)
+            ? new Types.ObjectId(tenantId)
+            : tenantId,
+        }
+      : {};
+
+    if (temId && dto.referenciaId) {
+      const referencia = await this.referenceModel
+        .findOne({ _id: dto.referenciaId, ...tenantScope }, { name: 1 })
+        .lean();
+      if (!referencia) {
+        throw new AppError('Referência não encontrada.', 400, 'BAD_REQUEST');
+      }
+      return { referenciaId: referencia._id, referencia: referencia.name };
+    }
+
+    const nome = String(dto.referencia || '').trim();
+    if (!nome) return { referencia: null, referenciaId: null };
+
+    const referencia = await this.referenceModel
+      .findOne({ name: nome.toUpperCase(), ...tenantScope }, { name: 1 })
+      .lean();
+
+    // Nomes livres antigos continuam sendo aceitos; apenas ficam sem vínculo.
+    return {
+      referencia: referencia ? referencia.name : nome,
+      referenciaId: referencia ? referencia._id : null,
+    };
+  }
 
   private findSetorByIds(ids: unknown[], tenantId: string | null = null) {
     return this.setorModel.find({
@@ -515,9 +564,11 @@ export class FuncionariosService {
     }
 
     const { coordenadoria: _ignored, ...restBody } = dto;
+    const vinculoReferencia = await this.resolveReferenciaVinculo(dto, tenantId);
 
     const funcionarioCriado = await this.funcionariosRepository.create({
       ...restBody,
+      ...vinculoReferencia,
       setorId: Types.ObjectId.isValid(setorId)
         ? new Types.ObjectId(setorId)
         : setorId,
@@ -602,11 +653,16 @@ export class FuncionariosService {
 
     const setorId = resolveSetorId(body) || lotacaoIdOf(atual as never);
     const { coordenadoria: _ignored, ...restBody } = body;
+    const vinculoReferencia = await this.resolveReferenciaVinculo(
+      body,
+      tenantId,
+    );
 
     const funcionarioAtualizado = await this.funcionariosRepository.update(
       id,
       {
         ...restBody,
+        ...vinculoReferencia,
         setorId,
         foto: fotoUrlAWS,
         arquivo: arquivoUrlAWS,

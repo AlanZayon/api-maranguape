@@ -32,8 +32,12 @@ export class Funcionario {
   @Prop({ required: true })
   natureza!: string;
 
+  /** Nome da referência que indicou o funcionário (denormalizado de `referenciaId`). */
   @Prop()
   referencia?: string;
+
+  @Prop({ type: Types.ObjectId, ref: 'Reference', default: null })
+  referenciaId!: Types.ObjectId | null;
 
   @Prop({ type: [Object], default: [] })
   redesSociais!: RedeSocial[];
@@ -107,3 +111,4 @@ FuncionarioSchema.index({ tenantId: 1, nome: 1 }, { unique: true });
 FuncionarioSchema.index({ tenantId: 1, setorId: 1 });
 FuncionarioSchema.index({ tenantId: 1, fimContrato: 1 });
 FuncionarioSchema.index({ tenantId: 1, natureza: 1 });
+FuncionarioSchema.index({ tenantId: 1, referenciaId: 1 });

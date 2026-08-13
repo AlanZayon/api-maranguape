@@ -45,6 +45,11 @@ export class FuncionarioDto {
   @Transform(normalize)
   referencia?: string;
 
+  /** Vínculo canônico com o catálogo de referências; `referencia` é o nome espelhado. */
+  @IsOptional()
+  @IsString()
+  referenciaId?: string;
+
   /** Parsed/sanitized in Transform — no nested ValidateNested (multipart safe). */
   @IsOptional()
   @Transform(({ value }) => parseRedesSociais(value))

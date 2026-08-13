@@ -1,10 +1,6 @@
 import { IsOptional, IsString, ValidateIf } from 'class-validator';
 
-export class RegisterReferenceDto {
-  @IsOptional()
-  @IsString()
-  funcionarioId?: string;
-
+export class UpdateReferenceDto {
   @IsOptional()
   @IsString()
   name?: string;
@@ -17,7 +13,7 @@ export class RegisterReferenceDto {
   @IsString()
   telefone?: string;
 
-  /** Referência que indicou esta; ausente/`null` cria uma raiz. */
+  /** `null` desvincula a referência, tornando-a raiz da hierarquia. */
   @IsOptional()
   @ValidateIf((_, value) => value !== null && value !== '')
   @IsString()

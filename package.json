@@ -14,7 +14,8 @@
     "migrate:lotacao": "ts-node -r tsconfig-paths/register src/scripts/migrate-lotacao.ts",
     "verify:tenant": "ts-node -r tsconfig-paths/register src/scripts/verify-tenant.ts",
     "seed:superadmin": "ts-node -r tsconfig-paths/register src/scripts/seed-superadmin.ts",
-    "migrate:owners": "ts-node -r tsconfig-paths/register src/scripts/migrate-owners.ts"
+    "migrate:owners": "ts-node -r tsconfig-paths/register src/scripts/migrate-owners.ts",
+    "backfill:referencia-id": "ts-node -r tsconfig-paths/register src/scripts/backfill-referencia-id.ts"
   },
   "keywords": [],
   "author": "",

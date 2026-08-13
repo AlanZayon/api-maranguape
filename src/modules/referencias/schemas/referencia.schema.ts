@@ -25,6 +25,10 @@ export class Reference {
   @Prop({ type: Types.ObjectId, ref: 'Funcionario' })
   funcionarioId?: Types.ObjectId;
 
+  /** Referência que indicou esta referência. `null` = raiz da hierarquia. */
+  @Prop({ type: Types.ObjectId, ref: 'Reference', default: null })
+  parentId!: Types.ObjectId | null;
+
   @Prop({ type: Types.ObjectId, ref: 'Tenant', default: null, index: true })
   tenantId!: Types.ObjectId | null;
 
@@ -37,6 +41,7 @@ export class Reference {
 
 export const ReferenceSchema = SchemaFactory.createForClass(Reference);
 ReferenceSchema.index({ tenantId: 1, name: 1 }, { unique: true });
+ReferenceSchema.index({ tenantId: 1, parentId: 1 });
 // Unique only when linked to a funcionario — sparse alone is not enough because
 // tenantId is always present, so Mongo still indexes { tenantId, funcionarioId: null }.
 ReferenceSchema.index(
