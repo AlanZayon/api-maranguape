@@ -1,144 +1,167 @@
-# API Maranguape — Runbook
+# Runbook — api-maranguape
 
-Operational notes for local development, health checks, multi-tenant ops, and migrations.
+**[Português](RUNBOOK.md)** | **[English](RUNBOOK.en.md)**
 
-## Environment variables
+Notas operacionais: ambiente, health, multi-tenant, branding, migrações e deploy.
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `MONGO_CONNECTING_FUNCIONARIOS` | yes | MongoDB URI for main data (funcionários, setores, tenants, audit) |
-| `MONGO_CONNECTING_USUARIOS` | no | Users DB URI; falls back to funcionários URI |
-| `REDIS_URL` or `REDIS_HOST`/`REDIS_PORT` | yes | Redis for cache |
-| `JWT_SECRET` | yes | JWT signing secret |
-| `JWT_EXPIRES_IN` | no | Default `24h` |
-| `BASE_DOMAIN` | prod | Apex domain for subdomain CORS (ex: `seudominio.com`) |
-| `CORS_ORIGINS` | no | Comma-separated extra allowed origins |
-| `NODE_ENV` | no | `production` enables secure cookies |
-| `LOG_LEVEL` | no | Winston level (default `info`) |
-| AWS S3 vars | for uploads | As configured in `src/config/aws.js` |
-| `TENANT_CUSTOM_CSS_ENABLED` | no | Enable tenant `customCss` (default `true`) |
-| `TENANT_CUSTOM_CSS_MAX_LENGTH` | no | Max CSS chars (default `20000`) |
-| `TENANT_BRANDING_EDITABLE_FIELDS` | no | CSV of writable branding keys |
-| `TENANT_CUSTOM_CSS_ALLOWED_SELECTORS` | no | CSV of allowed CSS selector prefixes |
-| `TENANT_FONT_URL_HOSTS` | no | CSV of allowed `fontUrl` hosts |
-| `TENANT_BRANDING_ASSET_MAX_BYTES` | no | Max logo/favicon upload size (default 2MB) |
+## Variáveis de ambiente
 
-## Health & metrics
+| Variável | Obrigatória | Descrição |
+|----------|-------------|-----------|
+| `MONGO_CONNECTING_FUNCIONARIOS` | sim | URI MongoDB principal (funcionários, setores, tenants, users, audit) |
+| `MONGO_CONNECTING_USUARIOS` | não | Legado; a app usa uma conexão Mongoose na URI de funcionários |
+| `JWT_SECRET` | sim | Segredo JWT |
+| `JWT_EXPIRES_IN` | não | Padrão `24h` |
+| `REDIS_URL` ou `REDIS_HOST`/`REDIS_PORT` | recomendado | Cache e BullMQ |
+| `AWS_ACCESS_KEY_ID` | uploads | Credencial S3 |
+| `AWS_SECRET_ACCESS_KEY` | uploads | Credencial S3 |
+| `S3_BUCKET_NAME` | uploads | Bucket |
+| `PORT` | não | Padrão `3000` |
+| `NODE_ENV` | não | `production` ativa cookies secure |
+| `BASE_DOMAIN` | produção | Domínio apex para CORS por subdomínio |
+| `CORS_ORIGINS` | não | Origins extras (CSV) |
+| `BULK_WORKER_EMBEDDED` | não | `true` = worker na API (padrão) |
+| `NEST_MIGRATED` | não | `all` (padrão) |
+| `RATE_LIMIT_MAX` | não | Teto de rate limit |
+| `TENANT_CUSTOM_CSS_ENABLED` | não | Habilita `customCss` (padrão `true`) |
+| `TENANT_CUSTOM_CSS_MAX_LENGTH` | não | Máx. chars CSS (padrão `20000`) |
+| `TENANT_BRANDING_EDITABLE_FIELDS` | não | CSV de campos graváveis de branding |
+| `TENANT_CUSTOM_CSS_ALLOWED_SELECTORS` | não | CSV de prefixos de seletor permitidos |
+| `TENANT_FONT_URL_HOSTS` | não | Hosts permitidos para `fontUrl` |
+| `TENANT_BRANDING_ASSET_MAX_BYTES` | não | Teto upload logo/favicon (padrão 2MB) |
 
-- `GET /` — liveness (`{ status: 'ok' }`)
-- `GET /health` — `{ status: 'healthy', uptime }`
-- `GET /metrics` — in-process request counters by path/status (`metrics.getSnapshot()`)
+Modelo: [`.env.example`](../.env.example). Validação mínima em `src/config/env.validation.ts`.
 
-## Auth
+## Health e métricas
 
-- Login: `POST /api/usuarios/login` → sets `authToken` httpOnly cookie
-- Verify: `GET /api/usuarios/verify`
-- Logout: `POST /api/usuarios/logout`
-- User management (owner/superadmin): `/api/usuarios/manage`
-- Tenant roles: `owner` (full access), `admin` (tudo exceto usuários), `user` (estrutura/funcionários)
-- Platform role: `superadmin`
-- Also in enum (unused in routes): `readonly`
-- Non-superadmin users **must** have `tenantId` (fail-closed)
-- Superadmin may send `X-Act-As-Tenant: slug` to scope requests
+| Endpoint | Resposta |
+|----------|----------|
+| `GET /` | `{ status: 'ok' }` |
+| `GET /health` | `{ status: 'healthy', uptime }` |
+| `GET /metrics` | Contadores in-process por path/status |
+
+## Auth (ops)
+
+| Ação | Endpoint |
+|------|----------|
+| Login | `POST /api/usuarios/login` → cookie `authToken` |
+| Verify | `GET /api/usuarios/verify` |
+| Logout | `POST /api/usuarios/logout` |
+| Gestão de usuários | `/api/usuarios/manage` (owner/superadmin) |
+
+Papéis: `owner`, `admin`, `user`, `superadmin` (+ `readonly` no enum). Não-superadmin **deve** ter `tenantId`. Superadmin pode enviar `X-Act-As-Tenant: slug`.
 
 ## Multi-tenant
 
-### Resolution order
+### Resolução
 
-1. Header `X-Tenant-Slug` (frontend sends subdomain slug)
-2. Subdomain from `Origin` / `Host` / `X-Forwarded-Host`
-3. Reserved hosts (`master`, `www`, `api`, `app`, …) → platform mode (no municipal tenant)
+1. `tenantId` do JWT (se autenticado)
+2. Header `X-Tenant-Slug`
+3. Subdomínio de `Origin` / `Host` / `X-Forwarded-Host`
+4. Hosts reservados (`master`, `www`, `api`, `app`, …) → modo plataforma
 
-### Branding & CRUD
+### Branding e CRUD
 
-| Endpoint | Auth | Notes |
+| Endpoint | Auth | Notas |
 |----------|------|-------|
-| `GET /api/tenants/branding-policy` | public | Effective branding limits (env-driven) |
-| `GET /api/tenants/by-slug/:slug` | public | Active tenant branding |
-| `GET /api/tenants/me` | auth | Current user tenant |
-| `PATCH /api/tenants/me` | owner/admin | Update own branding/vocabulary |
-| `GET/POST /api/tenants` | superadmin | List / create (+ first owner + seed) |
-| `GET/PATCH/DELETE /api/tenants/:id` | superadmin | Detail / update / soft-deactivate |
+| `GET /api/tenants/branding-policy` | público | Limites efetivos (env) |
+| `GET /api/tenants/by-slug/:slug` | público | Branding do tenant ativo |
+| `GET /api/tenants/me` | auth | Tenant do usuário |
+| `PATCH /api/tenants/me` | owner/admin | Atualiza branding/vocabulário |
+| `GET/POST /api/tenants` | superadmin | Listar / criar (+ owner inicial) |
+| `GET/PATCH/DELETE /api/tenants/:id` | superadmin | Detalhe / update / soft-deactivate |
 | `POST /api/tenants/:id/assets` | owner/admin/superadmin | Upload logo/favicon (`file` + `kind`) |
 
-Branding supports: logo/favicon, colors, header/sidebar, fonts, `themeMode`, `customCss`, vocabulary.
+Política:
 
-Policy notes:
-- Writable fields are filtered by `TENANT_BRANDING_EDITABLE_FIELDS`.
-- `customCss` is denylisted (script/expression/@import/…) then filtered to `TENANT_CUSTOM_CSS_ALLOWED_SELECTORS` prefixes (e.g. `.login-page`, `.sidebar`, `.dashboard-page`, `.dashboard-stat`).
-- When `TENANT_CUSTOM_CSS_ENABLED=false`, `customCss` is omitted from API payloads and updates are ignored.
-- `fontUrl` must match `TENANT_FONT_URL_HOSTS`. Colors must be valid CSS color strings.
-- Future hardening: CSP on the frontend for injected styles.
+- Campos filtrados por `TENANT_BRANDING_EDITABLE_FIELDS`
+- `customCss` passa por denylist e só aceita prefixos em `TENANT_CUSTOM_CSS_ALLOWED_SELECTORS`
+- Com `TENANT_CUSTOM_CSS_ENABLED=false`, `customCss` some dos payloads
+- `fontUrl` deve bater com `TENANT_FONT_URL_HOSTS`; cores devem ser CSS válidas
 
-### DNS / TLS (production)
+### DNS / TLS (produção)
 
-1. Wildcard DNS `*.BASE_DOMAIN` → frontend
-2. Wildcard TLS certificate for `*.BASE_DOMAIN`
+1. DNS wildcard `*.BASE_DOMAIN` → frontend
+2. Certificado TLS wildcard para `*.BASE_DOMAIN`
 3. `api.BASE_DOMAIN` → API
-4. `master.BASE_DOMAIN` → platform console (superadmin)
-5. `{slug}.BASE_DOMAIN` → white-label app for that tenant
+4. `master.BASE_DOMAIN` → console plataforma (superadmin)
+5. `{slug}.BASE_DOMAIN` → app white-label do tenant
 
-### Local development
+### Desenvolvimento local
 
-Browsers resolve `*.localhost`. Examples:
+Browsers resolvem `*.localhost`:
 
 - `http://master.localhost:5173` — console master
 - `http://maranguape.localhost:5173` — tenant Maranguape
-- Dev fallback: `?tenant=slug` or `VITE_TENANT_SLUG`
 
-Set API `BASE_DOMAIN=` empty locally; CORS allows `*.localhost`.
+Deixe `BASE_DOMAIN` vazio; CORS libera `*.localhost`.
 
-## Tenant migration & verify
-
-```bash
-npm run migrate:tenant   # backfill tenant maranguape + tenantId
-npm run verify:tenant    # fail if docs still lack tenantId
-```
-
-## Flow: create tenant → login white-label
-
-1. Login as superadmin on `master.{domain}`
-2. UI `/tenants/new` or `POST /api/tenants` with branding + first owner
-3. DNS already covers `*.domain` (wildcard)
-4. Open `{slug}.{domain}` and login as tenant owner
-
-## Scripts
+## Worker bulk
 
 ```bash
+# Embutido (padrão)
+BULK_WORKER_EMBEDDED=true
 npm run dev
-npm test
-npm run lint
-npm run migrate:tenant
-npm run migrate:owners   # promote earliest admin per tenant → owner
-npm run verify:tenant
+
+# Standalone (recomendado em produção sob carga)
+BULK_WORKER_EMBEDDED=false
+npm run build
+npm run prod          # terminal 1
+npm run worker:bulk   # terminal 2
 ```
 
-## Dedicated DB per tenant (hybrid / enterprise)
+Jobs: exclusão em massa e export CSV. Poll: `GET /api/funcionarios/jobs/:jobId`.
 
-Default isolation is **shared MongoDB + `tenantId`**. For large or regulated customers:
+## Migrações e seeds
 
-1. Provision a dedicated Mongo URI and store it on `Tenant.settings.mongoUri` (future).
-2. Route repository connections by `tenantId` only for those tenants.
-3. Keep Redis key prefix `tenant:{id}:` and S3 prefix `uploads/{tenantId}/` regardless of DB strategy.
-4. Prefer shared DB until a tenant exceeds operational thresholds.
+```bash
+npm run seed:superadmin
+npm run migrate:tenant    # backfill tenant + tenantId
+npm run verify:tenant     # falha se docs sem tenantId
+npm run migrate:owners    # promove admin mais antigo → owner
+npm run migrate:lotacao
+npm run backfill:referencia-id
+```
 
-Do not migrate all tenants to dedicated DBs by default — operational cost grows linearly.
+### Fluxo: criar tenant → login white-label
 
-## Index migration notes
+1. Login como superadmin em `master.{domain}`
+2. UI `/tenants/new` ou `POST /api/tenants` (branding + owner)
+3. DNS wildcard já cobre `*.domain`
+4. Abrir `{slug}.{domain}` e logar como owner
 
-After deploying compound unique indexes, drop legacy global uniques if they still exist:
+## Docker
+
+```bash
+docker compose up --build
+```
+
+Serviços: `app` (Nest), `mongo:7`, `redis`, `nginx:8080→app:3000`.
+
+## CI / deploy
+
+- CI: [`.github/workflows/ci-cd.yml`](../.github/workflows/ci-cd.yml) — lint, build, test (Mongo + Redis)
+- Deploy típico: push em `main` → hook Render (conforme workflow do repositório)
+- Cookies cross-site em produção: HTTPS + `sameSite=none`
+
+## Índices legados
+
+Após uniques compostos, drope uniques globais antigos se ainda existirem:
 
 ```js
-// Mongo shell / Compass
 db.funcionarios.dropIndex('nome_1')
 db.users.dropIndex('username_1')
 db.references.dropIndex('funcionarioId_1')
 ```
 
-New indexes (created by Mongoose sync):
-- `funcionarios`: `{ tenantId: 1, nome: 1 }` unique
-- `users`: `{ tenantId: 1, username: 1 }` unique
-- `references`: `{ tenantId: 1, name: 1 }` unique
-- `cargocomissionados`: `{ tenantId: 1, cargo: 1 }` unique
-- `simbologias`: `{ tenantId: 1, simbologia: 1 }` unique
+Índices novos (sync Mongoose): `{ tenantId: 1, nome: 1 }` (funcionários), `{ tenantId: 1, username: 1 }` (users), `{ tenantId: 1, name: 1 }` (references), equivalentes em cargos/simbologias.
 
+## DB dedicado por tenant (futuro / enterprise)
+
+Isolamento padrão = **Mongo compartilhado + `tenantId`**. Para clientes grandes/regulados, um caminho híbrido seria URI dedicada em `Tenant.settings` — manter Redis/S3 prefixados por tenant. Não migrar todos por padrão.
+
+## Relacionado
+
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [API.md](API.md)
+- [README.md](../README.md)

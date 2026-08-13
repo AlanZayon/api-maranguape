@@ -19,8 +19,8 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
-  "description": "",
+  "license": "AGPL-3.0",
+  "description": "Multi-tenant NestJS REST API for municipal HR and org-chart management",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.689.0",
     "@aws-sdk/s3-request-presigner": "^3.689.0",
