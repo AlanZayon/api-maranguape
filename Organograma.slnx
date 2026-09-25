@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Organograma.Api/Organograma.Api.csproj" />
+    <Project Path="src/Organograma.Application/Organograma.Application.csproj" />
+    <Project Path="src/Organograma.Domain/Organograma.Domain.csproj" />
+    <Project Path="src/Organograma.Infrastructure/Organograma.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Organograma.IntegrationTests/Organograma.IntegrationTests.csproj" />
+    <Project Path="tests/Organograma.UnitTests/Organograma.UnitTests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/SeedSuperAdmin/SeedSuperAdmin.csproj" />
+  </Folder>
+</Solution>

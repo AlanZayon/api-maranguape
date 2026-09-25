@@ -5,15 +5,12 @@ services:
       - '3000:3000'
     environment:
       - PORT=3000
-      # Mesmo DB até a migração multi-tenant separar usuários de fato
-      - MONGO_CONNECTING_USUARIOS=mongodb://mongo:27017/funcionarios
+      - ASPNETCORE_ENVIRONMENT=Development
       - MONGO_CONNECTING_FUNCIONARIOS=mongodb://mongo:27017/funcionarios
+      - JWT_SECRET=dev_jwt_secret_change_me
+      - JWT_EXPIRES_IN=24h
       - REDIS_URL=redis://redis:6379
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    volumes:
-      - .:/app
-    command: npm run prod
+      - CORS_ORIGINS=http://master.localhost:5173,http://demo.localhost:5173
     depends_on:
       mongo:
         condition: service_healthy
@@ -22,7 +19,6 @@ services:
     restart: unless-stopped
     networks:
       - app-network
-    # 1 instância em local — várias réplicas com 3000:3000 conflitam na porta
     deploy:
       resources:
         limits:
@@ -50,7 +46,7 @@ services:
           memory: '512M'
 
   redis:
-    image: redis:latest
+    image: redis:7
     ports:
       - '6379:6379'
     healthcheck:

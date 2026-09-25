@@ -1,8 +1,6 @@
-# API — api-maranguape
+# API — Organograma
 
-**[Português](API.md)** | **[English](API.en.md)**
-
-Mapa de rotas da API REST. Não há Swagger/OpenAPI no projeto; esta página é a referência.
+Mapa de rotas da API REST ASP.NET Core. OpenAPI: `GET /openapi/v1.json`. Esta página permanece a referência humana.
 
 Base local: `http://localhost:3000`
 
@@ -41,7 +39,7 @@ curl -s http://localhost:3000/health
 ```bash
 # Login (salva cookie em jar)
 curl -s -c cookies.txt -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"secret"}' \
+  -d '{"id":"admin","password":"secret"}' \
   http://localhost:3000/api/usuarios/login
 
 # Verify
@@ -73,7 +71,7 @@ curl -s -b cookies.txt http://localhost:3000/api/usuarios/verify
 | `POST` | `/api/tenants/:id/assets` | owner, admin, superadmin |
 
 ```bash
-curl -s http://localhost:3000/api/tenants/by-slug/maranguape
+curl -s http://localhost:3000/api/tenants/by-slug/demo
 curl -s http://localhost:3000/api/tenants/branding-policy
 ```
 
@@ -101,7 +99,7 @@ curl -s http://localhost:3000/api/tenants/branding-policy
 | `POST` | `/api/funcionarios/por-setores` | Por setores |
 
 ```bash
-curl -s -b cookies.txt -H "X-Tenant-Slug: maranguape" \
+curl -s -b cookies.txt -H "X-Tenant-Slug: demo" \
   "http://localhost:3000/api/funcionarios/buscarFuncionarios?page=1&limit=20"
 ```
 
@@ -140,7 +138,7 @@ curl -s -b cookies.txt -H "X-Tenant-Slug: maranguape" \
 | `DELETE` | `/api/referencias/delete-referencia/:id` | Excluir |
 
 ```bash
-curl -s -b cookies.txt -H "X-Tenant-Slug: maranguape" \
+curl -s -b cookies.txt -H "X-Tenant-Slug: demo" \
   http://localhost:3000/api/referencias/arvore
 ```
 
@@ -180,10 +178,10 @@ curl -s -b cookies.txt -H "X-Tenant-Slug: maranguape" \
 
 ```bash
 # Tenant explícito (útil em master / ferramentas)
--H "X-Tenant-Slug: maranguape"
+-H "X-Tenant-Slug: demo"
 
 # Superadmin atuando como município
--H "X-Act-As-Tenant: maranguape"
+-H "X-Act-As-Tenant: demo"
 ```
 
 ## Relacionado
