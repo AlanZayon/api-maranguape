@@ -85,17 +85,25 @@ tests/
 dotnet test Organograma.slnx
 ```
 
-## Seed superadmin
+## Seed
 
 ```bash
-# Requires MONGO_CONNECTING_FUNCIONARIOS (+ optional SUPERADMIN_*)
+# Só superadmin (platform)
 dotnet run --project tools/SeedSuperAdmin
+
+# Demo completo: tenant + usuários por papel + setores/funcionários/cotas/referências
+# Lê .env (MONGO_CONNECTING_FUNCIONARIOS). Use --reset para recriar o tenant demo.
+dotnet run --project tools/SeedDemo
+dotnet run --project tools/SeedDemo -- --reset
 ```
+
+Contas padrão do demo: ver [docs/PRODUCTION.md](docs/PRODUCTION.md).
 
 ## Documentação
 
 | Documento | Conteúdo |
 |-----------|----------|
+| [docs/PRODUCTION.md](docs/PRODUCTION.md) | Checklist Render + Vercel + Mongo + seed |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Arquitetura |
 | [docs/API.md](docs/API.md) | Rotas e exemplos |
 | OpenAPI | `GET /openapi/v1.json` |

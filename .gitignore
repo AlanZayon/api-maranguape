@@ -55,6 +55,8 @@ npm-debug.log*
 
 # Secrets
 .env
+.env.render
+.env.vercel
 *.pfx
 *.pem
 
