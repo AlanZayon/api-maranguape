@@ -1,4 +1,6 @@
+using System.Collections;
 using System.Globalization;
+using System.Text.Json;
 using Organograma.Application.Abstractions;
 using Organograma.Application.Setores;
 
@@ -39,7 +41,7 @@ public sealed class DashboardService(
     public async Task<object> GetEstruturaSnapshotAsync(string? tenantId = null, CancellationToken ct = default)
     {
         var treeObj = await setoresService.GetSetoresOrganizadosAsync(tenantId, ct);
-        var tree = treeObj as IEnumerable<object> ?? [];
+        var tree = AsObjectEnumerable(UnwrapJson(treeObj));
         var ranked = FlattenEstruturaRanking(tree);
 
         var totalSetores = ranked.Count;
@@ -140,39 +142,123 @@ public sealed class DashboardService(
         acc ??= [];
         foreach (var nodeObj in nodes)
         {
-            var node = ToDict(nodeObj);
-            var id = Convert.ToString(node.GetValueOrDefault("_id")) ?? "";
-            var nome = Convert.ToString(node.GetValueOrDefault("nome")) ?? "";
-            var total = 0;
-            if (node.TryGetValue("quantidadeFuncionariosSubtree", out var subtree))
-                total = Convert.ToInt32(subtree);
+            var node = ToDict(UnwrapJson(nodeObj));
+            var id = Convert.ToString(node.GetValueOrDefault("_id") ?? node.GetValueOrDefault("id")) ?? "";
+            var nome = Convert.ToString(node.GetValueOrDefault("nome") ?? node.GetValueOrDefault("name")) ?? "";
+            var total = ToInt32(node.GetValueOrDefault("quantidadeFuncionariosSubtree"));
 
             acc.Add(new RankedSetor(id, nome, total));
 
-            if (node.TryGetValue("subsetores", out var children) && children is IEnumerable<object> list)
-                FlattenEstruturaRanking(list, acc);
-            else if (children is System.Collections.IEnumerable enumerable and not string)
-                FlattenEstruturaRanking(enumerable.Cast<object>(), acc);
+            if (!node.TryGetValue("subsetores", out var children) || children is null)
+                node.TryGetValue("children", out children);
+
+            var childNodes = AsObjectEnumerable(UnwrapJson(children));
+            if (childNodes.Count > 0)
+                FlattenEstruturaRanking(childNodes, acc);
         }
 
         return acc;
     }
 
-    private static Dictionary<string, object?> ToDict(object obj)
+    private static Dictionary<string, object?> ToDict(object? obj)
     {
+        obj = UnwrapJson(obj);
+        if (obj is null) return new Dictionary<string, object?>();
         if (obj is Dictionary<string, object?> d) return d;
         if (obj is IReadOnlyDictionary<string, object?> rod)
-            return rod.ToDictionary(kv => kv.Key, kv => kv.Value);
+            return rod.ToDictionary(kv => kv.Key, kv => UnwrapJson(kv.Value));
+        if (obj is IDictionary dict)
+        {
+            var result = new Dictionary<string, object?>();
+            foreach (DictionaryEntry entry in dict)
+            {
+                var key = Convert.ToString(entry.Key);
+                if (!string.IsNullOrEmpty(key))
+                    result[key] = UnwrapJson(entry.Value);
+            }
+            return result;
+        }
 
         // Anonymous / reflection fallback
-        var result = new Dictionary<string, object?>();
+        var reflected = new Dictionary<string, object?>();
         foreach (var prop in obj.GetType().GetProperties())
-            result[prop.Name] = prop.GetValue(obj);
-        return result;
+            reflected[prop.Name] = UnwrapJson(prop.GetValue(obj));
+        return reflected;
     }
 
     private static int GetInt(Dictionary<string, object?> d, string key)
-        => d.TryGetValue(key, out var v) && v is not null ? Convert.ToInt32(v) : 0;
+        => d.TryGetValue(key, out var v) ? ToInt32(v) : 0;
+
+    private static int ToInt32(object? value)
+    {
+        value = UnwrapJson(value);
+        if (value is null) return 0;
+        if (value is int i) return i;
+        if (value is long l) return checked((int)l);
+        if (value is double db) return (int)Math.Round(db);
+        if (value is float f) return (int)Math.Round(f);
+        if (value is decimal m) return (int)Math.Round(m);
+        if (value is JsonElement je) return JsonElementToInt(je);
+        try
+        {
+            return Convert.ToInt32(value, CultureInfo.InvariantCulture);
+        }
+        catch
+        {
+            return int.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture),
+                NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed)
+                ? parsed
+                : 0;
+        }
+    }
+
+    private static int JsonElementToInt(JsonElement je) => je.ValueKind switch
+    {
+        JsonValueKind.Number when je.TryGetInt32(out var i) => i,
+        JsonValueKind.Number when je.TryGetInt64(out var l) => checked((int)l),
+        JsonValueKind.Number => (int)Math.Round(je.GetDouble()),
+        JsonValueKind.String when int.TryParse(je.GetString(), NumberStyles.Any,
+            CultureInfo.InvariantCulture, out var parsed) => parsed,
+        _ => 0,
+    };
+
+    /// <summary>
+    /// Redis cache deserializes <c>object</c> payloads as <see cref="JsonElement"/>.
+    /// Normalize to CLR dictionaries/lists/primitives before dashboard aggregation.
+    /// </summary>
+    private static object? UnwrapJson(object? value)
+    {
+        if (value is not JsonElement je) return value;
+        return je.ValueKind switch
+        {
+            JsonValueKind.Object => je.EnumerateObject()
+                .ToDictionary(p => p.Name, p => UnwrapJson((object)p.Value), StringComparer.Ordinal),
+            JsonValueKind.Array => je.EnumerateArray()
+                .Select(e => UnwrapJson((object)e))
+                .Where(x => x is not null)
+                .Cast<object>()
+                .ToList(),
+            JsonValueKind.String => je.GetString(),
+            JsonValueKind.Number when je.TryGetInt32(out var i) => i,
+            JsonValueKind.Number when je.TryGetInt64(out var l) => l,
+            JsonValueKind.Number => je.GetDouble(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Null or JsonValueKind.Undefined => null,
+            _ => je.ToString(),
+        };
+    }
+
+    private static List<object> AsObjectEnumerable(object? value)
+    {
+        value = UnwrapJson(value);
+        if (value is null) return [];
+        if (value is List<object> list) return list;
+        if (value is IEnumerable<object> typed) return typed.ToList();
+        if (value is IEnumerable enumerable and not string)
+            return enumerable.Cast<object?>().Where(x => x is not null).Cast<object>().ToList();
+        return [];
+    }
 
     private sealed record RankedSetor(string Id, string Nome, int Total);
 }

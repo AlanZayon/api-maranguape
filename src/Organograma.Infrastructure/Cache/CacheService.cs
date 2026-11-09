@@ -62,7 +62,16 @@ public sealed class CacheService : ICacheService
         var cacheKey = await ResolveKeyAsync(key, ct);
         var cached = await _db.StringGetAsync(cacheKey);
         if (cached.HasValue)
+        {
+            // Deserialize<object> becomes JsonElement — convert to CLR graphs for callers.
+            if (typeof(T) == typeof(object))
+            {
+                var element = JsonSerializer.Deserialize<JsonElement>((string)cached!);
+                return (T)(ConvertJsonElement(element) ?? new object());
+            }
+
             return JsonSerializer.Deserialize<T>((string)cached!)!;
+        }
 
         var fresh = await fetchFunction();
         if (fresh is not null)
@@ -74,6 +83,25 @@ public sealed class CacheService : ICacheService
         }
         return fresh;
     }
+
+    private static object? ConvertJsonElement(JsonElement je) => je.ValueKind switch
+    {
+        JsonValueKind.Object => je.EnumerateObject()
+            .ToDictionary(p => p.Name, p => ConvertJsonElement(p.Value), StringComparer.Ordinal),
+        JsonValueKind.Array => je.EnumerateArray()
+            .Select(ConvertJsonElement)
+            .Where(x => x is not null)
+            .Cast<object>()
+            .ToList(),
+        JsonValueKind.String => je.GetString(),
+        JsonValueKind.Number when je.TryGetInt32(out var i) => i,
+        JsonValueKind.Number when je.TryGetInt64(out var l) => l,
+        JsonValueKind.Number => je.GetDouble(),
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        JsonValueKind.Null or JsonValueKind.Undefined => null,
+        _ => je.ToString(),
+    };
 
     public async Task ClearCacheForSetorAsync(string? id, string? tenantId = null, CancellationToken ct = default)
     {
