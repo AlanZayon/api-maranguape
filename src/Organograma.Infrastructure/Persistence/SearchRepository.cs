@@ -91,40 +91,48 @@ public sealed class SearchRepository(MongoDbContext db) : ISearchRepository
         string? tenantId,
         CancellationToken ct = default)
     {
-        try
+        // Without Atlas Search indexes, $search often returns [] (no throw).
+        // Prefer Atlas when it finds hits; otherwise always use regex fallback.
+        if (IsAtlasSearchEnabled())
         {
-            var pipeline = new List<BsonDocument>
+            try
             {
-                new("$search", new BsonDocument
+                var pipeline = new List<BsonDocument>
                 {
-                    { "index", "autocomplete_funcionarios" },
+                    new("$search", new BsonDocument
                     {
-                        "compound", new BsonDocument("should", new BsonArray
+                        { "index", "autocomplete_funcionarios" },
                         {
-                            AutocompleteClause(termo, "nome"),
-                            AutocompleteClause(termo, "funcao"),
-                            AutocompleteClause(termo, "bairro"),
-                            AutocompleteClause(termo, "cidade"),
-                            AutocompleteClause(termo, "natureza"),
-                            AutocompleteClause(termo, "tipo"),
-                            AutocompleteClause(termo, "referencia"),
-                        })
-                    },
-                }),
-            };
+                            "compound", new BsonDocument("should", new BsonArray
+                            {
+                                AutocompleteClause(termo, "nome"),
+                                AutocompleteClause(termo, "funcao"),
+                                AutocompleteClause(termo, "bairro"),
+                                AutocompleteClause(termo, "cidade"),
+                                AutocompleteClause(termo, "natureza"),
+                                AutocompleteClause(termo, "tipo"),
+                                AutocompleteClause(termo, "referencia"),
+                            })
+                        },
+                    }),
+                };
 
-            var tenantStage = TenantMatchStage(tenantId);
-            if (tenantStage is not null) pipeline.Add(tenantStage);
+                var tenantStage = TenantMatchStage(tenantId);
+                if (tenantStage is not null) pipeline.Add(tenantStage);
 
-            pipeline.Add(new BsonDocument("$limit", 10));
-            pipeline.Add(new BsonDocument("$project", new BsonDocument("termo", BuildTermoCond(termo))));
+                pipeline.Add(new BsonDocument("$limit", 10));
+                pipeline.Add(new BsonDocument("$project", new BsonDocument("termo", BuildTermoCond(termo))));
 
-            return await db.Funcionarios.Aggregate<BsonDocument>(pipeline).ToListAsync(ct);
+                var atlas = await db.Funcionarios.Aggregate<BsonDocument>(pipeline).ToListAsync(ct);
+                if (atlas.Count > 0) return atlas;
+            }
+            catch (Exception ex) when (IsMissingSearchIndex(ex))
+            {
+                // fall through to regex
+            }
         }
-        catch (Exception ex) when (IsMissingSearchIndex(ex))
-        {
-            return await AutocompleteFuncionariosRegexAsync(termo, tenantId, ct);
-        }
+
+        return await AutocompleteFuncionariosRegexAsync(termo, tenantId, ct);
     }
 
     private async Task<IReadOnlyList<BsonDocument>> AutocompleteFuncionariosRegexAsync(
@@ -167,51 +175,65 @@ public sealed class SearchRepository(MongoDbContext db) : ISearchRepository
         string? tenantId,
         CancellationToken ct = default)
     {
-        try
+        if (IsAtlasSearchEnabled())
         {
-            var pipeline = new List<BsonDocument>
+            try
             {
-                new("$search", new BsonDocument
+                var pipeline = new List<BsonDocument>
                 {
-                    { "index", "autocomplete_setores" },
+                    new("$search", new BsonDocument
                     {
-                        "compound",
-                        new BsonDocument("should", new BsonArray { AutocompleteClause(termo, "nome") })
-                    },
-                }),
-            };
+                        { "index", "autocomplete_setores" },
+                        {
+                            "compound",
+                            new BsonDocument("should", new BsonArray { AutocompleteClause(termo, "nome") })
+                        },
+                    }),
+                };
 
-            var tenantStage = TenantMatchStage(tenantId);
-            if (tenantStage is not null) pipeline.Add(tenantStage);
+                var tenantStage = TenantMatchStage(tenantId);
+                if (tenantStage is not null) pipeline.Add(tenantStage);
 
-            pipeline.Add(new BsonDocument("$limit", 10));
-            pipeline.Add(new BsonDocument("$project", new BsonDocument("termo", new BsonDocument
+                pipeline.Add(new BsonDocument("$limit", 10));
+                pipeline.Add(new BsonDocument("$project", new BsonDocument("termo", new BsonDocument
+                {
+                    { "nome", "$nome" },
+                    { "tipo", "$tipo" },
+                })));
+
+                var atlas = await db.Setors.Aggregate<BsonDocument>(pipeline).ToListAsync(ct);
+                if (atlas.Count > 0) return atlas;
+            }
+            catch (Exception ex) when (IsMissingSearchIndex(ex))
             {
-                { "nome", "$nome" },
-                { "tipo", "$tipo" },
-            })));
-
-            return await db.Setors.Aggregate<BsonDocument>(pipeline).ToListAsync(ct);
+                // fall through to regex
+            }
         }
-        catch (Exception ex) when (IsMissingSearchIndex(ex))
+
+        return await AutocompleteSetoresRegexAsync(termo, tenantId, ct);
+    }
+
+    private async Task<IReadOnlyList<BsonDocument>> AutocompleteSetoresRegexAsync(
+        string termo,
+        string? tenantId,
+        CancellationToken ct)
+    {
+        var regex = new BsonRegularExpression(EscapeRegex(termo), "i");
+        var filter = new BsonDocument("nome", regex);
+        foreach (var el in TenantHelpers.TenantFilter(tenantId).Elements)
+            filter[el.Name] = el.Value;
+
+        var setores = await db.Setors
+            .Find(new BsonDocumentFilterDefinition<Setor>(filter))
+            .Limit(10)
+            .Project(s => new { s.Nome, s.Tipo })
+            .ToListAsync(ct);
+
+        return setores.Select(s => new BsonDocument("termo", new BsonDocument
         {
-            var regex = new BsonRegularExpression(EscapeRegex(termo), "i");
-            var filter = new BsonDocument("nome", regex);
-            foreach (var el in TenantHelpers.TenantFilter(tenantId).Elements)
-                filter[el.Name] = el.Value;
-
-            var setores = await db.Setors
-                .Find(new BsonDocumentFilterDefinition<Setor>(filter))
-                .Limit(10)
-                .Project(s => new { s.Nome, s.Tipo })
-                .ToListAsync(ct);
-
-            return setores.Select(s => new BsonDocument("termo", new BsonDocument
-            {
-                { "nome", s.Nome },
-                { "tipo", s.Tipo },
-            })).ToList();
-        }
+            { "nome", s.Nome },
+            { "tipo", s.Tipo },
+        })).ToList();
     }
 
     public async Task<IReadOnlyList<BsonDocument>> SearchSetoresAsync(
@@ -279,63 +301,89 @@ public sealed class SearchRepository(MongoDbContext db) : ISearchRepository
         string? tenantId,
         CancellationToken ct = default)
     {
-        try
+        if (IsAtlasSearchEnabled())
         {
-            var pipeline = new List<BsonDocument>
+            try
             {
-                new("$search", new BsonDocument
+                var pipeline = new List<BsonDocument>
                 {
-                    { "index", "busca_geral_funcionarios" },
+                    new("$search", new BsonDocument
                     {
-                        "text", new BsonDocument
+                        { "index", "busca_geral_funcionarios" },
                         {
-                            { "query", q },
+                            "text", new BsonDocument
                             {
-                                "path",
-                                new BsonArray
+                                { "query", q },
                                 {
-                                    "bairro", "cidade", "funcao", "natureza", "nome", "referencia", "tipo",
-                                }
-                            },
-                        }
-                    },
-                }),
-            };
+                                    "path",
+                                    new BsonArray
+                                    {
+                                        "bairro", "cidade", "funcao", "natureza", "nome", "referencia", "tipo",
+                                    }
+                                },
+                            }
+                        },
+                    }),
+                };
 
-            var tenantStage = TenantMatchStage(tenantId);
-            if (tenantStage is not null) pipeline.Add(tenantStage);
+                var tenantStage = TenantMatchStage(tenantId);
+                if (tenantStage is not null) pipeline.Add(tenantStage);
 
-            pipeline.Add(new BsonDocument("$limit", 20));
-            pipeline.Add(new BsonDocument("$project", new BsonDocument("_id", 1)));
+                pipeline.Add(new BsonDocument("$limit", 20));
+                pipeline.Add(new BsonDocument("$project", new BsonDocument("_id", 1)));
 
-            var docs = await db.Funcionarios.Aggregate<BsonDocument>(pipeline).ToListAsync(ct);
-            return docs
-                .Where(d => d.Contains("_id") && d["_id"].IsObjectId)
-                .Select(d => d["_id"].AsObjectId)
-                .ToList();
-        }
-        catch (Exception ex) when (IsMissingSearchIndex(ex))
-        {
-            var regex = new BsonRegularExpression(EscapeRegex(q), "i");
-            var filter = new BsonDocument("$or", new BsonArray
+                var docs = await db.Funcionarios.Aggregate<BsonDocument>(pipeline).ToListAsync(ct);
+                var ids = docs
+                    .Where(d => d.Contains("_id") && d["_id"].IsObjectId)
+                    .Select(d => d["_id"].AsObjectId)
+                    .ToList();
+                if (ids.Count > 0) return ids;
+            }
+            catch (Exception ex) when (IsMissingSearchIndex(ex))
             {
-                new BsonDocument("nome", regex),
-                new BsonDocument("funcao", regex),
-                new BsonDocument("secretaria", regex),
-                new BsonDocument("natureza", regex),
-                new BsonDocument("referencia", regex),
-                new BsonDocument("bairro", regex),
-                new BsonDocument("cidade", regex),
-            });
-            foreach (var el in TenantHelpers.TenantFilter(tenantId).Elements)
-                filter[el.Name] = el.Value;
-
-            return await db.Funcionarios
-                .Find(new BsonDocumentFilterDefinition<Funcionario>(filter))
-                .Limit(20)
-                .Project(f => f.Id)
-                .ToListAsync(ct);
+                // fall through to regex
+            }
         }
+
+        return await SearchFuncionariosRegexAsync(q, tenantId, ct);
+    }
+
+    private async Task<IReadOnlyList<ObjectId>> SearchFuncionariosRegexAsync(
+        string q,
+        string? tenantId,
+        CancellationToken ct)
+    {
+        var regex = new BsonRegularExpression(EscapeRegex(q), "i");
+        var filter = new BsonDocument("$or", new BsonArray
+        {
+            new BsonDocument("nome", regex),
+            new BsonDocument("funcao", regex),
+            new BsonDocument("secretaria", regex),
+            new BsonDocument("natureza", regex),
+            new BsonDocument("referencia", regex),
+            new BsonDocument("bairro", regex),
+            new BsonDocument("cidade", regex),
+        });
+        foreach (var el in TenantHelpers.TenantFilter(tenantId).Elements)
+            filter[el.Name] = el.Value;
+
+        return await db.Funcionarios
+            .Find(new BsonDocumentFilterDefinition<Funcionario>(filter))
+            .Limit(20)
+            .Project(f => f.Id)
+            .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Opt-in Atlas Search. Default off so autocomplete/busca work via regex
+    /// until indexes <c>autocomplete_*</c> / <c>busca_geral_funcionarios</c> exist.
+    /// </summary>
+    private static bool IsAtlasSearchEnabled()
+    {
+        var raw = Environment.GetEnvironmentVariable("ATLAS_SEARCH_ENABLED");
+        return string.Equals(raw, "1", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(raw, "true", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(raw, "yes", StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<IReadOnlyList<Funcionario>> GetFuncionariosByIdsAsync(
